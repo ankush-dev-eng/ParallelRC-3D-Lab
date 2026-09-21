@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: parallel-rc-spike-react
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: parallel-rc-spike-react
+  template:
+    metadata:
+      labels:
+        app: parallel-rc-spike-react
+    spec:
+      containers:
+      - name: web
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
