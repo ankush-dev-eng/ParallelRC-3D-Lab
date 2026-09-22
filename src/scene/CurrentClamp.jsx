@@ -29,9 +29,9 @@ const SNAP_RADIUS = 1.35;
 
 // Convert a measurement point into a world-space location.
 //
-// R and C follow the actual snapped component columns,
-// while the total-current point is placed on the common
-// side of the circuit.
+// R and C follow the actual snapped component columns.
+// The total-current point is placed only when both components
+// are connected.
 export function getMeasurementPointPosition(
     point,
     resistorColumn,
@@ -41,25 +41,25 @@ export function getMeasurementPointPosition(
         point ===
         MEASUREMENT_POINTS.P_R
     ) {
+        // P_R is only a valid measurement location when
+        // the resistor has actually been placed on the board.
         if (
-            resistorColumn !== null
+            resistorColumn === null
         ) {
-            const pair =
-                getColumnSocketPair(
-                    resistorColumn
-                );
+            return null;
+        }
 
-            if (pair) {
-                return [
-                    pair.hot.position[0],
-                    DRAG_HEIGHT,
-                    1.35,
-                ];
-            }
+        const pair =
+            getColumnSocketPair(
+                resistorColumn
+            );
+
+        if (!pair) {
+            return null;
         }
 
         return [
-            -0.8,
+            pair.hot.position[0],
             DRAG_HEIGHT,
             1.35,
         ];
@@ -69,25 +69,25 @@ export function getMeasurementPointPosition(
         point ===
         MEASUREMENT_POINTS.P_C
     ) {
+        // P_C is only a valid measurement location when
+        // the capacitor has actually been placed on the board.
         if (
-            capacitorColumn !== null
+            capacitorColumn === null
         ) {
-            const pair =
-                getColumnSocketPair(
-                    capacitorColumn
-                );
+            return null;
+        }
 
-            if (pair) {
-                return [
-                    pair.hot.position[0],
-                    DRAG_HEIGHT,
-                    -1.35,
-                ];
-            }
+        const pair =
+            getColumnSocketPair(
+                capacitorColumn
+            );
+
+        if (!pair) {
+            return null;
         }
 
         return [
-            0.8,
+            pair.hot.position[0],
             DRAG_HEIGHT,
             -1.35,
         ];
@@ -97,6 +97,15 @@ export function getMeasurementPointPosition(
         point ===
         MEASUREMENT_POINTS.P_TOT
     ) {
+        // Total current is only measurable after BOTH
+        // parallel branches have been assembled.
+        if (
+            resistorColumn === null ||
+            capacitorColumn === null
+        ) {
+            return null;
+        }
+
         return [
             0,
             DRAG_HEIGHT,
@@ -104,17 +113,47 @@ export function getMeasurementPointPosition(
         ];
     }
 
-    return CLAMP_TRAY_POSITION;
+    // Unknown measurement points are treated as unavailable.
+    return null;
 }
 
-// Snap the clamp to the nearest valid measurement point.
+// Decide whether a particular measurement point is currently
+// available in the assembled laboratory.
+function isMeasurementPointAvailable(
+    point,
+    resistorColumn,
+    capacitorColumn
+) {
+    return (
+        getMeasurementPointPosition(
+            point,
+            resistorColumn,
+            capacitorColumn
+        ) !== null
+    );
+}
+
+// Find the nearest currently available measurement point.
+//
+// IMPORTANT:
+// We only create candidates for measurement locations whose
+// corresponding physical component has actually been placed.
 function findNearestMeasurementPoint(
     position,
     resistorColumn,
     capacitorColumn
 ) {
-    const candidates = [
-        {
+    const candidates = [];
+
+    // Add resistor measurement point only when R exists.
+    if (
+        isMeasurementPointAvailable(
+            MEASUREMENT_POINTS.P_R,
+            resistorColumn,
+            capacitorColumn
+        )
+    ) {
+        candidates.push({
             id:
                 MEASUREMENT_POINTS.P_R,
             position:
@@ -123,8 +162,18 @@ function findNearestMeasurementPoint(
                     resistorColumn,
                     capacitorColumn
                 ),
-        },
-        {
+        });
+    }
+
+    // Add capacitor measurement point only when C exists.
+    if (
+        isMeasurementPointAvailable(
+            MEASUREMENT_POINTS.P_C,
+            resistorColumn,
+            capacitorColumn
+        )
+    ) {
+        candidates.push({
             id:
                 MEASUREMENT_POINTS.P_C,
             position:
@@ -133,8 +182,19 @@ function findNearestMeasurementPoint(
                     resistorColumn,
                     capacitorColumn
                 ),
-        },
-        {
+        });
+    }
+
+    // Add total-current measurement point only when
+    // both branches exist.
+    if (
+        isMeasurementPointAvailable(
+            MEASUREMENT_POINTS.P_TOT,
+            resistorColumn,
+            capacitorColumn
+        )
+    ) {
+        candidates.push({
             id:
                 MEASUREMENT_POINTS.P_TOT,
             position:
@@ -143,8 +203,8 @@ function findNearestMeasurementPoint(
                     resistorColumn,
                     capacitorColumn
                 ),
-        },
-    ];
+        });
+    }
 
     let nearest = null;
     let nearestDistance =
@@ -236,14 +296,22 @@ export default function CurrentClamp({
             []
         );
 
-    const currentTargetPosition =
+    // Determine where the clamp belongs when it is not being dragged.
+    //
+    // If the stored measurement point is no longer valid because
+    // a component was removed, fall back to the tray.
+    const selectedTargetPosition =
         point
             ? getMeasurementPointPosition(
                 point,
                 resistorColumn,
                 capacitorColumn
             )
-            : CLAMP_TRAY_POSITION;
+            : null;
+
+    const currentTargetPosition =
+        selectedTargetPosition ??
+        CLAMP_TRAY_POSITION;
 
     const renderPosition =
         dragging &&
@@ -364,8 +432,8 @@ export default function CurrentClamp({
                 snappedPoint
             );
         } else {
-            // Dropping away from every measurement location
-            // returns the clamp to its tray.
+            // Dropping away from every currently valid measurement
+            // location returns the clamp to its tray.
             onPointChange(null);
         }
 
@@ -397,6 +465,17 @@ export default function CurrentClamp({
                             resistorColumn,
                             capacitorColumn
                         );
+
+                    // IMPORTANT:
+                    // Do not render a measurement ring when its
+                    // physical component does not exist.
+                    //
+                    // This fixes the original bug where P_C could
+                    // still be selected while the capacitor was
+                    // sitting in the tray.
+                    if (!position) {
+                        return null;
+                    }
 
                     const active =
                         point ===
@@ -588,8 +667,12 @@ export default function CurrentClamp({
 // P_C represents the capacitor branch current,
 // and P_TOT represents the total current.
 //
-// I use named measurement points so one physical simulation can feed
-// all three measurements instead of creating three separate circuits.
+// A measurement point now exists only when the corresponding physical
+// circuit branch exists. Therefore P_C cannot be selected while the
+// capacitor is still sitting in the tray.
+//
+// P_TOT also waits until both R and C are connected because total
+// parallel-branch current only makes sense after the two branches exist.
 //
 // The drag position uses a ref because the pointer can move and release
 // faster than React can render every state update.
