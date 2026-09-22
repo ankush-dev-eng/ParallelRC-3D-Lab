@@ -1,4 +1,7 @@
-import { useCallback, useSyncExternalStore } from "react";
+import {
+    useCallback,
+    useSyncExternalStore,
+} from "react";
 
 // This is the starting state for one laboratory session.
 // All major parts of the simulation will eventually read/write through this state.
@@ -11,14 +14,17 @@ const initialState = {
     },
 
     controls: {
+        // Main electrical controls used by the experiment.
         voltageVrms: 3,
         frequencyHz: 1000,
         resistanceOhm: 1000,
         capacitanceUf: 0.1,
 
+        // Instrument/power controls.
         generatorOn: false,
         scopeOn: false,
 
+        // Oscilloscope display controls.
         ch1VoltsPerDiv: 2,
         ch2MilliAmpsPerDiv: 2,
         timePerDivMs: 0.2,
@@ -77,8 +83,9 @@ function updateState(updater) {
 }
 
 // My understanding:
-// I keep the experiment data in one central place so the circuit, instruments,
-// controls, progress system, and later the report can all use the same state.
+// I keep the experiment data in one central place so the circuit,
+// instruments, controls, progress system, and report can all use
+// the same experiment state.
 
 export const labStore = {
     // Return the complete current laboratory state.
@@ -196,5 +203,5 @@ export function useLabStore(selector) {
 }
 
 // My understanding:
-// This hook connects a React component to the central store while allowing
-// the component to choose only the piece of state it actually needs.
+// This hook connects React to the central store while allowing
+// each component to subscribe only to the piece of state it needs.
