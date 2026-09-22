@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 
+import { labStore, useLabStore } from './state/labStore';
+
 const SOCKET_Z = { hot: 0.7, return: -0.7 };
 const COLUMN_X = [-3.2, -1.6, 0, 1.6, 3.2];
 const SNAP_RADIUS = 1.0;
@@ -144,6 +146,11 @@ export default function App() {
   const [candidateColumn, setCandidateColumn] = useState(null);
   const [snappedColumn, setSnappedColumn] = useState(null);
   const [errors, setErrors] = useState(0);
+  const frequencyHz = useLabStore(
+    (state) => state.controls.frequencyHz
+  );
+
+
 
   // A fixed horizontal plane turns a 2D pointer drag into a predictable 3D bench position.
   const dragPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
@@ -277,6 +284,23 @@ export default function App() {
             </span>
           </div>
           <div><strong>Procedural errors:</strong> {errors}</div>
+        </div>
+        <div>
+          <strong>Store frequency:</strong> {frequencyHz} Hz
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button
+            onClick={() => labStore.setControls({ frequencyHz: 1000 })}
+          >
+            1 kHz
+          </button>
+
+          <button
+            onClick={() => labStore.setControls({ frequencyHz: 5000 })}
+          >
+            5 kHz
+          </button>
         </div>
 
         <button
