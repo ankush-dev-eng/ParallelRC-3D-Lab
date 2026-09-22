@@ -2,7 +2,10 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { Canvas } from "@react-three/fiber";
+
+import {
+  Canvas,
+} from "@react-three/fiber";
 
 import {
   labStore,
@@ -17,6 +20,8 @@ import {
 import Breadboard from "./scene/Breadboard";
 import Capacitor from "./scene/Capacitor";
 import CameraRig from "./scene/CameraRig";
+import CurrentClamp from "./scene/CurrentClamp";
+
 import {
   getColumnSocketPair,
 } from "./scene/breadboardSockets";
@@ -58,12 +63,22 @@ function Resistor({
   return (
     <group
       position={position}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerOver={(event) => {
+      onPointerDown={
+        onPointerDown
+      }
+      onPointerMove={
+        onPointerMove
+      }
+      onPointerUp={
+        onPointerUp
+      }
+      onPointerOver={(
+        event
+      ) => {
         event.stopPropagation();
-        document.body.style.cursor = "grab";
+
+        document.body.style.cursor =
+          "grab";
       }}
       onPointerOut={() => {
         if (!dragging) {
@@ -75,7 +90,12 @@ function Resistor({
       {/* Simple resistor body for the procedural prototype. */}
       <mesh castShadow>
         <cylinderGeometry
-          args={[0.18, 0.18, 0.55, 20]}
+          args={[
+            0.18,
+            0.18,
+            0.55,
+            20,
+          ]}
         />
 
         <meshStandardMaterial
@@ -89,9 +109,20 @@ function Resistor({
       </mesh>
 
       {/* Top electrical lead. */}
-      <mesh position={[0, 0, 0.52]}>
+      <mesh
+        position={[
+          0,
+          0,
+          0.52,
+        ]}
+      >
         <cylinderGeometry
-          args={[0.045, 0.045, 0.42, 12]}
+          args={[
+            0.045,
+            0.045,
+            0.42,
+            12,
+          ]}
         />
 
         <meshStandardMaterial
@@ -102,9 +133,20 @@ function Resistor({
       </mesh>
 
       {/* Bottom electrical lead. */}
-      <mesh position={[0, 0, -0.52]}>
+      <mesh
+        position={[
+          0,
+          0,
+          -0.52,
+        ]}
+      >
         <cylinderGeometry
-          args={[0.045, 0.045, 0.42, 12]}
+          args={[
+            0.045,
+            0.045,
+            0.42,
+            12,
+          ]}
         />
 
         <meshStandardMaterial
@@ -115,25 +157,64 @@ function Resistor({
       </mesh>
 
       {/* Three simple visual bands identify the resistor. */}
-      <mesh position={[0, 0.14, 0]}>
+      <mesh
+        position={[
+          0,
+          0.14,
+          0,
+        ]}
+      >
         <boxGeometry
-          args={[0.32, 0.03, 0.07]}
+          args={[
+            0.32,
+            0.03,
+            0.07,
+          ]}
         />
-        <meshBasicMaterial color="#111827" />
+
+        <meshBasicMaterial
+          color="#111827"
+        />
       </mesh>
 
-      <mesh position={[0, 0.14, -0.14]}>
+      <mesh
+        position={[
+          0,
+          0.14,
+          -0.14,
+        ]}
+      >
         <boxGeometry
-          args={[0.32, 0.03, 0.07]}
+          args={[
+            0.32,
+            0.03,
+            0.07,
+          ]}
         />
-        <meshBasicMaterial color="#111827" />
+
+        <meshBasicMaterial
+          color="#111827"
+        />
       </mesh>
 
-      <mesh position={[0, 0.14, 0.14]}>
+      <mesh
+        position={[
+          0,
+          0.14,
+          0.14,
+        ]}
+      >
         <boxGeometry
-          args={[0.32, 0.03, 0.07]}
+          args={[
+            0.32,
+            0.03,
+            0.07,
+          ]}
         />
-        <meshBasicMaterial color="#111827" />
+
+        <meshBasicMaterial
+          color="#111827"
+        />
       </mesh>
     </group>
   );
@@ -152,8 +233,10 @@ function LabScene({
   capacitorPosition,
   resistorSnappedColumn,
   capacitorSnappedColumn,
+  clampPoint,
   onResistorPointerDown,
   onCapacitorPointerDown,
+  onClampPointChange,
   onPointerMove,
   onPointerUp,
 }) {
@@ -163,7 +246,8 @@ function LabScene({
   // Show the snapped column for the component
   // currently being interacted with.
   const displayedSnappedColumn =
-    dragState.component === "capacitor"
+    dragState.component ===
+      "capacitor"
       ? capacitorSnappedColumn
       : resistorSnappedColumn;
 
@@ -174,7 +258,11 @@ function LabScene({
         height: "100%",
       }}
       camera={{
-        position: [0, 8.5, 8.5],
+        position: [
+          0,
+          8.5,
+          8.5,
+        ],
         fov: 45,
         near: 0.1,
         far: 100,
@@ -186,26 +274,40 @@ function LabScene({
       }}
     >
       {/* Camera controller for Bench, Board, and Analysis views. */}
-      <CameraRig view={cameraView} />
+      <CameraRig
+        view={cameraView}
+      />
 
       <color
         attach="background"
-        args={["#070b12"]}
+        args={[
+          "#070b12",
+        ]}
       />
 
       {/* General scene illumination. */}
-      <ambientLight intensity={0.8} />
+      <ambientLight
+        intensity={0.8}
+      />
 
       {/* Main directional lab light. */}
       <directionalLight
-        position={[4, 8, 5]}
+        position={[
+          4,
+          8,
+          5,
+        ]}
         intensity={2.4}
         castShadow
       />
 
       {/* Centered fill light keeps the workbench readable. */}
       <pointLight
-        position={[0, 5, 1]}
+        position={[
+          0,
+          5,
+          1,
+        ]}
         intensity={60}
         distance={14}
         decay={2}
@@ -214,10 +316,19 @@ function LabScene({
 
       {/* Temporary workbench surface. */}
       <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
+        rotation={[
+          -Math.PI / 2,
+          0,
+          0,
+        ]}
         receiveShadow
       >
-        <planeGeometry args={[14, 7]} />
+        <planeGeometry
+          args={[
+            14,
+            7,
+          ]}
+        />
 
         <meshStandardMaterial
           color="#18212b"
@@ -251,8 +362,12 @@ function LabScene({
         onPointerDown={
           onResistorPointerDown
         }
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
+        onPointerMove={
+          onPointerMove
+        }
+        onPointerUp={
+          onPointerUp
+        }
       />
 
       {/* Capacitor. */}
@@ -271,16 +386,40 @@ function LabScene({
         onPointerDown={
           onCapacitorPointerDown
         }
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
+        onPointerMove={
+          onPointerMove
+        }
+        onPointerUp={
+          onPointerUp
+        }
+      />
+
+      {/* Virtual AC current clamp. */}
+      <CurrentClamp
+        point={clampPoint}
+        resistorColumn={
+          resistorSnappedColumn
+        }
+        capacitorColumn={
+          capacitorSnappedColumn
+        }
+        onPointChange={
+          onClampPointChange
+        }
       />
 
       {/* Component tray. */}
       <mesh
-        position={TRAY_POSITION}
+        position={
+          TRAY_POSITION
+        }
       >
         <boxGeometry
-          args={[3.4, 0.08, 1.8]}
+          args={[
+            3.4,
+            0.08,
+            1.8,
+          ]}
         />
 
         <meshStandardMaterial
@@ -300,9 +439,13 @@ function LabScene({
 function formatFrequency(
   frequencyHz
 ) {
-  if (frequencyHz >= 1000) {
+  if (
+    frequencyHz >=
+    1000
+  ) {
     return `${(
-      frequencyHz / 1000
+      frequencyHz /
+      1000
     ).toFixed(1)} kHz`;
   }
 
@@ -322,21 +465,25 @@ function ControlSlider({
   return (
     <div
       style={{
-        display: "grid",
+        display:
+          "grid",
         gap: 6,
       }}
     >
       <div
         style={{
-          display: "flex",
+          display:
+            "flex",
           justifyContent:
             "space-between",
-          alignItems: "center",
+          alignItems:
+            "center",
         }}
       >
         <span
           style={{
-            color: "#cbd5e1",
+            color:
+              "#cbd5e1",
           }}
         >
           {label}
@@ -354,16 +501,22 @@ function ControlSlider({
         max={max}
         step={step}
         value={value}
-        onChange={(event) =>
+        onChange={(
+          event
+        ) =>
           onChange(
             Number(
-              event.target.value
+              event
+                .target
+                .value
             )
           )
         }
         style={{
-          width: "100%",
-          cursor: "pointer",
+          width:
+            "100%",
+          cursor:
+            "pointer",
         }}
       />
     </div>
@@ -409,25 +562,44 @@ export default function App() {
   // CAMERA STATE
   // ----------------------------------------------------------
 
-  const [cameraView, setCameraView] =
-    useState("bench");
+  const [
+    cameraView,
+    setCameraView,
+  ] = useState("bench");
 
   // Keyboard shortcuts:
   // 1 = Bench
   // 2 = Board
   // 3 = Analysis
   useEffect(() => {
-    function handleKeyDown(event) {
-      if (event.key === "1") {
-        setCameraView("bench");
+    function handleKeyDown(
+      event
+    ) {
+      if (
+        event.key ===
+        "1"
+      ) {
+        setCameraView(
+          "bench"
+        );
       }
 
-      if (event.key === "2") {
-        setCameraView("board");
+      if (
+        event.key ===
+        "2"
+      ) {
+        setCameraView(
+          "board"
+        );
       }
 
-      if (event.key === "3") {
-        setCameraView("analysis");
+      if (
+        event.key ===
+        "3"
+      ) {
+        setCameraView(
+          "analysis"
+        );
       }
     }
 
@@ -452,35 +624,53 @@ export default function App() {
   // CENTRAL STORE
   // ----------------------------------------------------------
 
-  const voltageVrms = useLabStore(
-    (state) =>
-      state.controls.voltageVrms
-  );
+  const voltageVrms =
+    useLabStore(
+      (state) =>
+        state.controls
+          .voltageVrms
+    );
 
-  const frequencyHz = useLabStore(
-    (state) =>
-      state.controls.frequencyHz
-  );
+  const frequencyHz =
+    useLabStore(
+      (state) =>
+        state.controls
+          .frequencyHz
+    );
 
-  const resistanceOhm = useLabStore(
-    (state) =>
-      state.controls.resistanceOhm
-  );
+  const resistanceOhm =
+    useLabStore(
+      (state) =>
+        state.controls
+          .resistanceOhm
+    );
 
-  const capacitanceUf = useLabStore(
-    (state) =>
-      state.controls.capacitanceUf
-  );
+  const capacitanceUf =
+    useLabStore(
+      (state) =>
+        state.controls
+          .capacitanceUf
+    );
 
-  const generatorOn = useLabStore(
-    (state) =>
-      state.controls.generatorOn
-  );
+  const generatorOn =
+    useLabStore(
+      (state) =>
+        state.controls
+          .generatorOn
+    );
 
-  const scopeOn = useLabStore(
-    (state) =>
-      state.controls.scopeOn
-  );
+  const scopeOn =
+    useLabStore(
+      (state) =>
+        state.controls
+          .scopeOn
+    );
+
+  const clampPoint =
+    useLabStore(
+      (state) =>
+        state.clamp.point
+    );
 
   const resistorConnected =
     useLabStore(
@@ -493,8 +683,39 @@ export default function App() {
     );
 
   // MY UNDERSTANDING:
-  // These control values are read from the central store so the
-  // future physics engine and instruments will all see the same values.
+  // These control and measurement values are read from the central store
+  // so later physics and instrument components all see the same experiment state.
+
+  // ----------------------------------------------------------
+  // CLAMP DEFAULTING
+  // ----------------------------------------------------------
+
+  useEffect(() => {
+    // Once a complete circuit exists, the first useful current
+    // measurement can be the total current through the circuit.
+    //
+    // IMPORTANT:
+    // We only set the default when the circuit is complete.
+    // We do NOT clear the clamp when the circuit is incomplete,
+    // because the clamp is an interaction tool that can be tested
+    // independently before the complete supply wiring exists.
+    if (
+      circuitAssembled &&
+      clampPoint === null
+    ) {
+      labStore.setClampPoint(
+        "P_TOT"
+      );
+    }
+  }, [
+    circuitAssembled,
+    clampPoint,
+  ]);
+
+  // MY UNDERSTANDING:
+  // The clamp can remember its selected measurement point independently
+  // of circuit assembly. Later, the measurement/physics layer decides
+  // whether that selected point currently has a valid electrical reading.
 
   // ----------------------------------------------------------
   // DROP RESULT
@@ -535,11 +756,15 @@ export default function App() {
           return;
         }
 
-        const snappedPosition = [
-          pair.hot.position[0],
-          DRAG_HEIGHT,
-          0,
-        ];
+        const snappedPosition =
+          [
+            pair.hot
+              .position[
+            0
+            ],
+            DRAG_HEIGHT,
+            0,
+          ];
 
         setResistorPosition(
           snappedPosition
@@ -550,12 +775,14 @@ export default function App() {
         );
 
         // Store the actual electrical socket IDs.
-        labStore.setWiring({
-          resistor: [
-            sockets.first,
-            sockets.second,
-          ],
-        });
+        labStore.setWiring(
+          {
+            resistor: [
+              sockets.first,
+              sockets.second,
+            ],
+          }
+        );
       } else {
         // Invalid placement sends the resistor back to the tray.
         setResistorPosition(
@@ -572,12 +799,14 @@ export default function App() {
         );
 
         // Keep visual and electrical state consistent.
-        labStore.setWiring({
-          resistor: [
-            null,
-            null,
-          ],
-        });
+        labStore.setWiring(
+          {
+            resistor: [
+              null,
+              null,
+            ],
+          }
+        );
       }
     }
 
@@ -605,11 +834,15 @@ export default function App() {
           return;
         }
 
-        const snappedPosition = [
-          pair.hot.position[0],
-          DRAG_HEIGHT,
-          0,
-        ];
+        const snappedPosition =
+          [
+            pair.hot
+              .position[
+            0
+            ],
+            DRAG_HEIGHT,
+            0,
+          ];
 
         setCapacitorPosition(
           snappedPosition
@@ -620,12 +853,14 @@ export default function App() {
         );
 
         // Store the capacitor's electrical socket IDs.
-        labStore.setWiring({
-          capacitor: [
-            sockets.first,
-            sockets.second,
-          ],
-        });
+        labStore.setWiring(
+          {
+            capacitor: [
+              sockets.first,
+              sockets.second,
+            ],
+          }
+        );
       } else {
         // Invalid placement sends the capacitor back to the tray.
         setCapacitorPosition(
@@ -642,18 +877,20 @@ export default function App() {
         );
 
         // Clear the capacitor's electrical connection.
-        labStore.setWiring({
-          capacitor: [
-            null,
-            null,
-          ],
-        });
+        labStore.setWiring(
+          {
+            capacitor: [
+              null,
+              null,
+            ],
+          }
+        );
       }
     }
 
     // MY UNDERSTANDING:
-    // The controller only decides where the component was dropped.
-    // App decides how that result changes the experiment's state.
+    // The controller only decides where a component was dropped.
+    // App decides how that result changes the experiment state.
   };
 
   // ----------------------------------------------------------
@@ -665,41 +902,56 @@ export default function App() {
     startDrag,
     moveDrag,
     endDrag,
-  } = useDragController({
-    dragHeight:
-      DRAG_HEIGHT,
-    snapRadius:
-      SNAP_RADIUS,
-    onDrop:
-      handleComponentDrop,
-  });
+  } = useDragController(
+    {
+      dragHeight:
+        DRAG_HEIGHT,
+      snapRadius:
+        SNAP_RADIUS,
+      onDrop:
+        handleComponentDrop,
+    }
+  );
 
   // Start dragging the resistor.
-  const handleResistorPointerDown = (
-    event
-  ) => {
-    startDrag(
-      event,
-      "resistor",
-      resistorPosition
-    );
-  };
+  const handleResistorPointerDown =
+    (event) => {
+      startDrag(
+        event,
+        "resistor",
+        resistorPosition
+      );
+    };
 
   // Start dragging the capacitor.
-  const handleCapacitorPointerDown = (
-    event
-  ) => {
-    startDrag(
-      event,
-      "capacitor",
-      capacitorPosition
+  const handleCapacitorPointerDown =
+    (event) => {
+      startDrag(
+        event,
+        "capacitor",
+        capacitorPosition
+      );
+    };
+
+  // ----------------------------------------------------------
+  // CLAMP HANDLER
+  // ----------------------------------------------------------
+
+  function handleClampPointChange(
+    point
+  ) {
+    labStore.setClampPoint(
+      point
     );
-  };
+
+    // MY UNDERSTANDING:
+    // The clamp interaction only chooses the measurement location.
+    // The actual current value will later come from the shared physics engine.
+  }
 
   // MY UNDERSTANDING:
-  // Both components can use the same startDrag function because
-  // the common drag behavior is inside the generic controller.
-  // App only tells it which component was clicked.
+  // R/C use the generic component drag system because they snap into
+  // electrical sockets, while the clamp uses measurement points instead.
 
   // ----------------------------------------------------------
   // CONTROL HANDLERS
@@ -708,54 +960,74 @@ export default function App() {
   function setVoltage(
     value
   ) {
-    labStore.setControls({
-      voltageVrms: value,
-    });
+    labStore.setControls(
+      {
+        voltageVrms:
+          value,
+      }
+    );
   }
 
   function setFrequency(
     value
   ) {
-    labStore.setControls({
-      frequencyHz: value,
-    });
+    labStore.setControls(
+      {
+        frequencyHz:
+          value,
+      }
+    );
   }
 
   function setResistance(
     value
   ) {
-    labStore.setControls({
-      resistanceOhm: value,
-    });
+    labStore.setControls(
+      {
+        resistanceOhm:
+          value,
+      }
+    );
   }
 
   function setCapacitance(
     value
   ) {
-    labStore.setControls({
-      capacitanceUf: value,
-    });
+    labStore.setControls(
+      {
+        capacitanceUf:
+          value,
+      }
+    );
   }
 
   function toggleGenerator() {
-    labStore.setControls({
-      generatorOn:
-        !generatorOn,
-    });
+    labStore.setControls(
+      {
+        generatorOn:
+          !generatorOn,
+      }
+    );
   }
 
   function loadReferenceValues() {
-    labStore.setControls({
-      voltageVrms: 5,
-      frequencyHz: 1000,
-      resistanceOhm: 1000,
-      capacitanceUf: 0.1,
-    });
+    labStore.setControls(
+      {
+        voltageVrms:
+          5,
+        frequencyHz:
+          1000,
+        resistanceOhm:
+          1000,
+        capacitanceUf:
+          0.1,
+      }
+    );
   }
 
   // MY UNDERSTANDING:
-  // Every control updates the central store immediately, so any future
-  // physics or instrument component can react to the same live values.
+  // Every control updates the central store immediately, so later
+  // physics and instrument components can use the same live values.
 
   // ----------------------------------------------------------
   // RESET
@@ -787,7 +1059,9 @@ export default function App() {
     labStore.reset();
 
     // Return to the default camera view.
-    setCameraView("bench");
+    setCameraView(
+      "bench"
+    );
 
     document.body.style.cursor =
       "default";
@@ -818,10 +1092,8 @@ export default function App() {
           position:
             "absolute",
           inset: 0,
-          width:
-            "100%",
-          height:
-            "100%",
+          width: "100%",
+          height: "100%",
         }}
       >
         <LabScene
@@ -843,11 +1115,17 @@ export default function App() {
           capacitorSnappedColumn={
             capacitorSnappedColumn
           }
+          clampPoint={
+            clampPoint
+          }
           onResistorPointerDown={
             handleResistorPointerDown
           }
           onCapacitorPointerDown={
             handleCapacitorPointerDown
+          }
+          onClampPointChange={
+            handleClampPointChange
           }
           onPointerMove={
             moveDrag
@@ -892,7 +1170,8 @@ export default function App() {
               6,
           }}
         >
-          Parallel RC — Controls
+          Parallel RC —
+          Current Measurement
         </div>
 
         <div
@@ -905,9 +1184,11 @@ export default function App() {
               1.5,
           }}
         >
-          Configure the AC source
-          and component values in
-          real time.
+          Configure the AC
+          source, then move
+          the current clamp
+          between measurement
+          points.
         </div>
 
         {/* ------------------------------------------------
@@ -1038,15 +1319,27 @@ export default function App() {
                   "#e5e7eb",
               }}
             >
-              <option value={0.01}>
+              <option
+                value={
+                  0.01
+                }
+              >
                 0.01 µF
               </option>
 
-              <option value={0.1}>
+              <option
+                value={
+                  0.1
+                }
+              >
                 0.1 µF
               </option>
 
-              <option value={1}>
+              <option
+                value={
+                  1
+                }
+              >
                 1.0 µF
               </option>
             </select>
@@ -1079,7 +1372,9 @@ export default function App() {
               "pointer",
           }}
         >
-          Load reference: 5 V · 1 kHz ·
+          Load reference:
+          {" "}
+          5 V · 1 kHz ·
           1 kΩ · 0.1 µF
         </button>
 
@@ -1116,7 +1411,7 @@ export default function App() {
             : " OFF"}
         </button>
 
-        {/* Temporary status panel. */}
+        {/* Current clamp status. */}
         <div
           style={{
             marginTop:
@@ -1138,27 +1433,23 @@ export default function App() {
           }}
         >
           <div>
-            Frequency:
+            Clamp point:
             {" "}
-            {formatFrequency(
-              frequencyHz
-            )}
+            <strong>
+              {clampPoint ??
+                "TRAY"}
+            </strong>
           </div>
 
-          <div>
-            Generator:
-            {" "}
-            {generatorOn
-              ? "ON"
-              : "OFF"}
-          </div>
-
-          <div>
-            Scope:
-            {" "}
-            {scopeOn
-              ? "ON"
-              : "OFF"}
+          <div
+            style={{
+              color:
+                "#94a3b8",
+            }}
+          >
+            Drag the clamp
+            onto P_R, P_C,
+            or P_TOT.
           </div>
         </div>
 
@@ -1272,6 +1563,23 @@ export default function App() {
 
           <div>
             <strong>
+              Generator:
+            </strong>{" "}
+            {generatorOn
+              ? "ON"
+              : "OFF"}
+          </div>
+
+          <div>
+            <strong>
+              Clamp:
+            </strong>{" "}
+            {clampPoint ??
+              "TRAY"}
+          </div>
+
+          <div>
+            <strong>
               Dragging:
             </strong>{" "}
             {
@@ -1349,42 +1657,63 @@ export default function App() {
             </strong>{" "}
             {errors}
           </div>
+
+          <div>
+            <strong>
+              Frequency:
+            </strong>{" "}
+            {
+              formatFrequency(
+                frequencyHz
+              )
+            }
+          </div>
+
+          <div>
+            <strong>
+              Scope:
+            </strong>{" "}
+            {scopeOn
+              ? "ON"
+              : "OFF"}
+          </div>
         </div>
 
-        {/* Temporary testing controls from the earlier phase. */}
+        {/* ------------------------------------------------
+                    CLAMP EXPLANATION
+                ------------------------------------------------- */}
+
         <div
           style={{
             marginTop:
               16,
-            display:
-              "none",
+            padding:
+              10,
+            borderRadius:
+              10,
+            background:
+              "rgba(124, 58, 237, 0.10)",
+            border:
+              "1px solid rgba(139, 92, 246, 0.35)",
+            fontSize:
+              12,
+            lineHeight:
+              1.55,
+            color:
+              "#d8b4fe",
           }}
         >
-          <button
-            onClick={() =>
-              labStore.setControls(
-                {
-                  frequencyHz:
-                    1000,
-                }
-              )
-            }
-          >
-            1 kHz
-          </button>
-
-          <button
-            onClick={() =>
-              labStore.setControls(
-                {
-                  frequencyHz:
-                    5000,
-                }
-              )
-            }
-          >
-            5 kHz
-          </button>
+          <strong>
+            Current clamp:
+          </strong>{" "}
+          Move the orange
+          clamp between the
+          glowing measurement
+          rings. P_R measures
+          resistor current,
+          P_C measures capacitor
+          current, and P_TOT
+          measures total current.
         </div>
 
         {/* Reset. */}
@@ -1440,9 +1769,8 @@ export default function App() {
             "nowrap",
         }}
       >
-        1 · Bench • 2 · Board •
-        3 · Analysis • Drag R and C
-        onto different A/B columns
+        Drag the current clamp
+        to P_R · P_C · P_TOT
       </div>
     </div>
   );
