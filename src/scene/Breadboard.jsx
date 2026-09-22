@@ -56,10 +56,11 @@ export default function Breadboard({
 }) {
     const activeColumn =
         candidateColumn !== null
-            ? candidateColumn + 1
-            : snappedColumn !== null
-                ? snappedColumn + 1
-                : null;
+            ? candidateColumn
+            : snappedColumn;
+
+    // MY UNDERSTANDING:
+    // Write why we no longer add 1 to the column number here.
 
     return (
         <group>

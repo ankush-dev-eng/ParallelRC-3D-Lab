@@ -1,19 +1,37 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import * as THREE from "three";
 
 import { labStore, useLabStore } from "./state/labStore";
+
 import {
   selectCircuitAssembled,
   selectResistorConnected,
 } from "./state/selectors";
+
 import Breadboard from "./scene/Breadboard";
+import Capacitor from "./scene/Capacitor";
 import { getColumnSocketPair } from "./scene/breadboardSockets";
 
+import { useDragController } from "./interaction/DragController";
+
+// Shared interaction constants.
 const SNAP_RADIUS = 1.0;
 const DRAG_HEIGHT = 0.42;
+
+// Initial tray locations for the two components.
 const TRAY_POSITION = [5.0, DRAG_HEIGHT, -2.5];
 
+const CAPACITOR_TRAY_POSITION = [
+  6.5,
+  DRAG_HEIGHT,
+  -2.5,
+];
+
+// ------------------------------------------------------------
+// RESISTOR
+// ------------------------------------------------------------
+// This component is only responsible for rendering the resistor
+// and forwarding pointer events to the interaction system.
 function Resistor({
   position,
   dragging,
@@ -37,17 +55,28 @@ function Resistor({
         }
       }}
     >
-      {/* The resistor body is kept simple for the interaction prototype. */}
+      {/* Simple resistor body for the current procedural prototype. */}
       <mesh castShadow>
-        <cylinderGeometry args={[0.18, 0.18, 0.55, 20]} />
+        <cylinderGeometry
+          args={[0.18, 0.18, 0.55, 20]}
+        />
+
         <meshStandardMaterial
-          color={dragging ? "#fbbf24" : "#f97316"}
+          color={
+            dragging
+              ? "#fbbf24"
+              : "#f97316"
+          }
           roughness={0.5}
         />
       </mesh>
 
+      {/* Top electrical lead. */}
       <mesh position={[0, 0, 0.52]}>
-        <cylinderGeometry args={[0.045, 0.045, 0.42, 12]} />
+        <cylinderGeometry
+          args={[0.045, 0.045, 0.42, 12]}
+        />
+
         <meshStandardMaterial
           color="#cbd5e1"
           metalness={0.65}
@@ -55,8 +84,12 @@ function Resistor({
         />
       </mesh>
 
+      {/* Bottom electrical lead. */}
       <mesh position={[0, 0, -0.52]}>
-        <cylinderGeometry args={[0.045, 0.045, 0.42, 12]} />
+        <cylinderGeometry
+          args={[0.045, 0.045, 0.42, 12]}
+        />
+
         <meshStandardMaterial
           color="#cbd5e1"
           metalness={0.65}
@@ -64,33 +97,60 @@ function Resistor({
         />
       </mesh>
 
+      {/* Three simple visual bands identify the resistor. */}
       <mesh position={[0, 0.14, 0]}>
-        <boxGeometry args={[0.32, 0.03, 0.07]} />
+        <boxGeometry
+          args={[0.32, 0.03, 0.07]}
+        />
+
         <meshBasicMaterial color="#111827" />
       </mesh>
 
       <mesh position={[0, 0.14, -0.14]}>
-        <boxGeometry args={[0.32, 0.03, 0.07]} />
+        <boxGeometry
+          args={[0.32, 0.03, 0.07]}
+        />
+
         <meshBasicMaterial color="#111827" />
       </mesh>
 
       <mesh position={[0, 0.14, 0.14]}>
-        <boxGeometry args={[0.32, 0.03, 0.07]} />
+        <boxGeometry
+          args={[0.32, 0.03, 0.07]}
+        />
+
         <meshBasicMaterial color="#111827" />
       </mesh>
     </group>
   );
 }
 
+// ------------------------------------------------------------
+// LAB SCENE
+// ------------------------------------------------------------
+// This component contains the 3D scene and receives state/handlers
+// from App instead of owning electrical logic itself.
 function LabScene({
+  dragState,
   resistorPosition,
-  dragging,
-  candidateColumn,
-  snappedColumn,
-  onPointerDown,
+  capacitorPosition,
+  resistorSnappedColumn,
+  capacitorSnappedColumn,
+  onResistorPointerDown,
+  onCapacitorPointerDown,
   onPointerMove,
   onPointerUp,
 }) {
+  const candidateColumn =
+    dragState.candidateColumn;
+
+  // Show the last snapped column for the component
+  // that is currently relevant to the interaction.
+  const displayedSnappedColumn =
+    dragState.component === "capacitor"
+      ? capacitorSnappedColumn
+      : resistorSnappedColumn;
+
   return (
     <Canvas
       camera={{
@@ -99,21 +159,24 @@ function LabScene({
       }}
       shadows
       onPointerMissed={() => {
-        if (!dragging) {
-          document.body.style.cursor = "default";
-        }
+        document.body.style.cursor = "default";
       }}
     >
-      <color attach="background" args={["#070b12"]} />
+      <color
+        attach="background"
+        args={["#070b12"]}
+      />
 
       <ambientLight intensity={0.8} />
 
+      {/* Main directional lab light. */}
       <directionalLight
         position={[4, 8, 5]}
         intensity={2.4}
         castShadow
       />
 
+      {/* Centered fill light keeps the workbench readable. */}
       <pointLight
         position={[0, 5, 1]}
         intensity={60}
@@ -122,37 +185,67 @@ function LabScene({
         castShadow
       />
 
-      {/* Temporary workbench surface for the procedural prototype. */}
+      {/* Temporary workbench surface. */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
       >
         <planeGeometry args={[14, 7]} />
+
         <meshStandardMaterial
           color="#18212b"
           roughness={0.8}
         />
       </mesh>
 
-      {/* The reusable breadboard now owns the canonical socket visuals. */}
+      {/* Canonical breadboard and socket layout. */}
       <Breadboard
         candidateColumn={candidateColumn}
-        snappedColumn={snappedColumn}
+        snappedColumn={displayedSnappedColumn}
       />
 
+      {/* Resistor. */}
       <Resistor
-        position={resistorPosition}
-        dragging={dragging}
-        onPointerDown={onPointerDown}
+        position={
+          dragState.component === "resistor" &&
+            dragState.position
+            ? dragState.position
+            : resistorPosition
+        }
+        dragging={
+          dragState.component === "resistor"
+        }
+        onPointerDown={
+          onResistorPointerDown
+        }
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       />
 
-      {/* Component tray for a failed drop or the initial resistor position. */}
-      <mesh
-        position={TRAY_POSITION}
-      >
-        <boxGeometry args={[1.4, 0.08, 1.4]} />
+      {/* Capacitor. */}
+      <Capacitor
+        position={
+          dragState.component === "capacitor" &&
+            dragState.position
+            ? dragState.position
+            : capacitorPosition
+        }
+        dragging={
+          dragState.component === "capacitor"
+        }
+        onPointerDown={
+          onCapacitorPointerDown
+        }
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      />
+
+      {/* Tray for components before placement. */}
+      <mesh position={TRAY_POSITION}>
+        <boxGeometry
+          args={[3.4, 0.08, 1.8]}
+        />
+
         <meshStandardMaterial
           color="#111827"
           roughness={0.7}
@@ -162,189 +255,278 @@ function LabScene({
   );
 }
 
+// ------------------------------------------------------------
+// APP
+// ------------------------------------------------------------
 export default function App() {
-  const [resistorPosition, setResistorPosition] =
-    useState(TRAY_POSITION);
+  // Persistent visual positions are kept in React state because
+  // they describe where the components should remain after a drop.
+  const [
+    resistorPosition,
+    setResistorPosition,
+  ] = useState(TRAY_POSITION);
 
-  const [dragging, setDragging] = useState(false);
-  const [candidateColumn, setCandidateColumn] = useState(null);
-  const [snappedColumn, setSnappedColumn] = useState(null);
-  const [errors, setErrors] = useState(0);
+  const [
+    capacitorPosition,
+    setCapacitorPosition,
+  ] = useState(
+    CAPACITOR_TRAY_POSITION
+  );
+
+  // These values describe where each component was last snapped.
+  const [
+    resistorSnappedColumn,
+    setResistorSnappedColumn,
+  ] = useState(null);
+
+  const [
+    capacitorSnappedColumn,
+    setCapacitorSnappedColumn,
+  ] = useState(null);
+
+  const [errors, setErrors] =
+    useState(0);
+
+  // ----------------------------------------------------------
+  // READ FROM CENTRAL STORE
+  // ----------------------------------------------------------
 
   const frequencyHz = useLabStore(
     (state) => state.controls.frequencyHz
   );
-  const resistorConnected = useLabStore(
-    selectResistorConnected
-  );
 
-  const circuitAssembled = useLabStore(
-    selectCircuitAssembled
-  );
-
-  // My understanding:
-  // These selectors let the app read whether the resistor and complete
-  // circuit are actually connected according to the central lab state.
-
-  // The drag plane converts the pointer ray into a predictable position on the bench.
-  const dragPlane = useMemo(
-    () =>
-      new THREE.Plane(
-        new THREE.Vector3(0, 1, 0),
-        0
-      ),
-    []
-  );
-
-  function getBenchPoint(event) {
-    return event.ray.intersectPlane(
-      dragPlane,
-      new THREE.Vector3()
+  const resistorConnected =
+    useLabStore(
+      selectResistorConnected
     );
-  }
 
-  function getClosestColumn(point) {
-    let bestColumn = null;
-    let bestDistance = Infinity;
+  const circuitAssembled =
+    useLabStore(
+      selectCircuitAssembled
+    );
 
-    for (let column = 1; column <= 6; column += 1) {
-      const pair = getColumnSocketPair(column);
+  // MY UNDERSTANDING:
+  // Write in your own words how these selectors read information
+  // from the central lab store instead of keeping duplicate values in App.
 
-      if (!pair) {
-        continue;
+  // ----------------------------------------------------------
+  // DROP RESULT
+  // ----------------------------------------------------------
+  // The generic drag controller tells App what happened.
+  // App then decides which component should update the lab state.
+  const handleComponentDrop = (
+    result
+  ) => {
+    const {
+      component,
+      column,
+      sockets,
+    } = result;
+
+    if (component === "resistor") {
+      // Reject a resistor placement if the capacitor already
+      // occupies the same physical A/B column.
+      const columnOccupied =
+        column !== null &&
+        column === capacitorSnappedColumn;
+
+      if (
+        column !== null &&
+        sockets &&
+        !columnOccupied
+      ) {
+        const pair =
+          getColumnSocketPair(column);
+
+        if (!pair) {
+          return;
+        }
+
+        const snappedPosition = [
+          pair.hot.position[0],
+          DRAG_HEIGHT,
+          0,
+        ];
+
+        setResistorPosition(
+          snappedPosition
+        );
+
+        setResistorSnappedColumn(
+          column
+        );
+
+        // Store the actual electrical socket IDs,
+        // not screen coordinates.
+        labStore.setWiring({
+          resistor: [
+            sockets.first,
+            sockets.second,
+          ],
+        });
+      } else {
+        // Invalid placement returns the resistor to the tray.
+        setResistorPosition(
+          TRAY_POSITION
+        );
+
+        setResistorSnappedColumn(
+          null
+        );
+
+        setErrors(
+          (value) => value + 1
+        );
+
+        // Clear the electrical connection as well.
+        labStore.setWiring({
+          resistor: [null, null],
+        });
       }
+    }
 
-      const x = pair.hot.position[0];
+    if (component === "capacitor") {
+      // Reject a capacitor placement if the resistor already
+      // occupies the same physical A/B column.
+      const columnOccupied =
+        column !== null &&
+        column === resistorSnappedColumn;
 
-      // The resistor is placed halfway between the matching A and B sockets.
-      const distance = Math.hypot(
-        point.x - x,
-        point.z
-      );
+      if (
+        column !== null &&
+        sockets &&
+        !columnOccupied
+      ) {
+        const pair =
+          getColumnSocketPair(column);
 
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestColumn = column;
+        if (!pair) {
+          return;
+        }
+
+        const snappedPosition = [
+          pair.hot.position[0],
+          DRAG_HEIGHT,
+          0,
+        ];
+
+        setCapacitorPosition(
+          snappedPosition
+        );
+
+        setCapacitorSnappedColumn(
+          column
+        );
+
+        // Store the capacitor's two actual socket IDs.
+        labStore.setWiring({
+          capacitor: [
+            sockets.first,
+            sockets.second,
+          ],
+        });
+      } else {
+        // Invalid capacitor placement returns it to the tray.
+        setCapacitorPosition(
+          CAPACITOR_TRAY_POSITION
+        );
+
+        setCapacitorSnappedColumn(
+          null
+        );
+
+        setErrors(
+          (value) => value + 1
+        );
+
+        // Remove its electrical connection.
+        labStore.setWiring({
+          capacitor: [null, null],
+        });
       }
     }
 
-    return bestDistance <= SNAP_RADIUS
-      ? bestColumn
-      : null;
-  }
+    // MY UNDERSTANDING:
+    // Write in your own words why the generic controller reports
+    // the drop result to App, and App decides how to update the store.
+  };
 
-  function handlePointerDown(event) {
-    event.stopPropagation();
+  // ----------------------------------------------------------
+  // GENERIC DRAG CONTROLLER
+  // ----------------------------------------------------------
+  const {
+    dragState,
+    startDrag,
+    moveDrag,
+    endDrag,
+  } = useDragController({
+    dragHeight: DRAG_HEIGHT,
+    snapRadius: SNAP_RADIUS,
+    onDrop: handleComponentDrop,
+  });
 
-    event.target.setPointerCapture?.(
-      event.pointerId
+  // Start a resistor drag.
+  const handleResistorPointerDown = (
+    event
+  ) => {
+    startDrag(
+      event,
+      "resistor",
+      resistorPosition
+    );
+  };
+
+  // Start a capacitor drag.
+  const handleCapacitorPointerDown = (
+    event
+  ) => {
+    startDrag(
+      event,
+      "capacitor",
+      capacitorPosition
+    );
+  };
+
+  // MY UNDERSTANDING:
+  // Both components call the same startDrag function because
+  // the controller handles the common drag behaviour.
+  // App only identifies which component was clicked.
+
+  // ----------------------------------------------------------
+  // RESET
+  // ----------------------------------------------------------
+  function resetLab() {
+    // Reset both visual component positions.
+    setResistorPosition(
+      TRAY_POSITION
     );
 
-    setDragging(true);
-    setSnappedColumn(null);
-    document.body.style.cursor = "grabbing";
-  }
-
-  function handlePointerMove(event) {
-    if (!dragging) {
-      return;
-    }
-
-    event.stopPropagation();
-
-    const point = getBenchPoint(event);
-
-    if (!point) {
-      return;
-    }
-
-    const nextPosition = [
-      point.x,
-      DRAG_HEIGHT,
-      point.z,
-    ];
-
-    const nextCandidate =
-      getClosestColumn(point);
-
-    setResistorPosition(nextPosition);
-    setCandidateColumn(nextCandidate);
-  }
-
-  function handlePointerUp(event) {
-    if (!dragging) {
-      return;
-    }
-
-    event.stopPropagation();
-
-    event.target.releasePointerCapture?.(
-      event.pointerId
+    setCapacitorPosition(
+      CAPACITOR_TRAY_POSITION
     );
 
-    const candidate = candidateColumn;
+    // Forget both component placements.
+    setResistorSnappedColumn(
+      null
+    );
 
-    if (candidate !== null) {
-      const pair =
-        getColumnSocketPair(candidate);
+    setCapacitorSnappedColumn(
+      null
+    );
 
-      // Successful snap: place the resistor at the centre of the selected A/B pair.
-      setResistorPosition([
-        pair.hot.position[0],
-        DRAG_HEIGHT,
-        0,
-      ]);
-
-      setSnappedColumn(candidate);
-
-      // Store the electrical connection using the actual socket IDs.
-      labStore.setWiring({
-        resistor: [
-          pair.hot.id,
-          pair.return.id,
-        ],
-      });
-
-
-
-    } else {
-      // Failed drop: return the resistor to the component tray.
-      setResistorPosition(TRAY_POSITION);
-      setErrors((value) => value + 1);
-      setSnappedColumn(null);
-
-      // Remove the resistor's electrical connection because it was not
-      // successfully placed on a legal A/B socket pair.
-      labStore.setWiring({
-        resistor: [null, null],
-      });
-
-      // MY UNDERSTANDING:
-      // Write in your own words why an invalid drop must also clear
-      // the resistor's wiring from the central lab state.
-    }
-
-    setCandidateColumn(null);
-    setDragging(false);
-    document.body.style.cursor = "default";
-  }
-
-  function resetSpike() {
-    setResistorPosition(TRAY_POSITION);
-    setDragging(false);
-    setCandidateColumn(null);
-    setSnappedColumn(null);
+    // Reset the temporary interaction error counter.
     setErrors(0);
 
-    // Reset the temporary store test as well.
-    labStore.setControls({
-      frequencyHz: 1000,
-    });
+    // Reset the complete central laboratory state.
+    labStore.reset();
 
-    document.body.style.cursor = "default";
+    document.body.style.cursor =
+      "default";
   }
 
-
+  // ----------------------------------------------------------
+  // UI
+  // ----------------------------------------------------------
   return (
     <div
       style={{
@@ -358,6 +540,7 @@ export default function App() {
           "Inter, system-ui, sans-serif",
       }}
     >
+      {/* 3D scene. */}
       <div
         style={{
           position: "absolute",
@@ -365,22 +548,37 @@ export default function App() {
         }}
       >
         <LabScene
-          resistorPosition={resistorPosition}
-          dragging={dragging}
-          candidateColumn={candidateColumn}
-          snappedColumn={snappedColumn}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
+          dragState={dragState}
+          resistorPosition={
+            resistorPosition
+          }
+          capacitorPosition={
+            capacitorPosition
+          }
+          resistorSnappedColumn={
+            resistorSnappedColumn
+          }
+          capacitorSnappedColumn={
+            capacitorSnappedColumn
+          }
+          onResistorPointerDown={
+            handleResistorPointerDown
+          }
+          onCapacitorPointerDown={
+            handleCapacitorPointerDown
+          }
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
         />
       </div>
 
+      {/* Main HUD. */}
       <div
         style={{
           position: "absolute",
           top: 18,
           left: 18,
-          width: 330,
+          width: 350,
           padding: 18,
           borderRadius: 16,
           background:
@@ -397,7 +595,8 @@ export default function App() {
             marginBottom: 6,
           }}
         >
-          Parallel RC — Drag & Snap Spike
+          Parallel RC — Interaction
+          Test
         </div>
 
         <div
@@ -407,9 +606,9 @@ export default function App() {
             lineHeight: 1.5,
           }}
         >
-          Test only: drag the resistor from
-          the tray and place it across one
-          A/B socket pair.
+          Drag the resistor and
+          capacitor onto different
+          A/B socket pairs.
         </div>
 
         <div
@@ -421,56 +620,91 @@ export default function App() {
           }}
         >
           <div>
-            <strong>Drag:</strong>{" "}
-            {dragging ? "yes" : "no"}
+            <strong>
+              Dragging:
+            </strong>{" "}
+            {dragState.component ??
+              "none"}
           </div>
 
           <div>
-            <strong>Snap candidate:</strong>{" "}
-            {candidateColumn === null
+            <strong>
+              Snap candidate:
+            </strong>{" "}
+            {dragState.candidateColumn ===
+              null
               ? "none"
-              : `column ${candidateColumn}`}
-          </div>
-          <div>
-            <strong>Resistor connected:</strong>{" "}
-            {String(resistorConnected)}
-          </div>
-          <div>
-            <strong>Snapped:</strong>{" "}
-            {snappedColumn === null
-              ? "no"
-              : `column ${snappedColumn}`}
+              : `column ${dragState.candidateColumn}`}
           </div>
 
           <div>
-            <strong>circuitAssembled:</strong>{" "}
+            <strong>
+              Resistor connected:
+            </strong>{" "}
+            {String(
+              resistorConnected
+            )}
+          </div>
+
+          <div>
+            <strong>
+              Resistor snapped:
+            </strong>{" "}
+            {resistorSnappedColumn ===
+              null
+              ? "no"
+              : `column ${resistorSnappedColumn}`}
+          </div>
+
+          <div>
+            <strong>
+              Capacitor snapped:
+            </strong>{" "}
+            {capacitorSnappedColumn ===
+              null
+              ? "no"
+              : `column ${capacitorSnappedColumn}`}
+          </div>
+
+          <div>
+            <strong>
+              Circuit assembled:
+            </strong>{" "}
             <span
               style={{
-                color: circuitAssembled
-                  ? "#22c55e"
-                  : "#f97316",
+                color:
+                  circuitAssembled
+                    ? "#22c55e"
+                    : "#f97316",
               }}
             >
-              {String(circuitAssembled)}
+              {String(
+                circuitAssembled
+              )}
             </span>
           </div>
 
           <div>
-            <strong>Procedural errors:</strong>{" "}
+            <strong>
+              Procedural errors:
+            </strong>{" "}
             {errors}
           </div>
 
           <div>
-            <strong>Store frequency:</strong>{" "}
+            <strong>
+              Store frequency:
+            </strong>{" "}
             {frequencyHz} Hz
           </div>
         </div>
 
+        {/* Temporary store test buttons. */}
         <div
           style={{
             display: "flex",
             gap: 8,
-            marginTop: 10,
+            marginTop: 12,
           }}
         >
           <button
@@ -495,7 +729,7 @@ export default function App() {
         </div>
 
         <button
-          onClick={resetSpike}
+          onClick={resetLab}
           style={{
             marginTop: 16,
             width: "100%",
@@ -508,16 +742,18 @@ export default function App() {
             cursor: "pointer",
           }}
         >
-          Reset Spike
+          Reset Lab
         </button>
       </div>
 
+      {/* Small interaction hint. */}
       <div
         style={{
           position: "absolute",
           bottom: 18,
           left: "50%",
-          transform: "translateX(-50%)",
+          transform:
+            "translateX(-50%)",
           padding: "10px 16px",
           borderRadius: 999,
           background:
@@ -528,9 +764,9 @@ export default function App() {
           color: "#cbd5e1",
         }}
       >
-        A/B sockets = legal targets •
-        Release near a column to snap •
-        Drop elsewhere to return to tray
+        Different A/B columns are
+        required for R and C • Drop
+        elsewhere to return to the tray
       </div>
     </div>
   );
