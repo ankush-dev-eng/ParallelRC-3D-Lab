@@ -3,6 +3,10 @@ import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { labStore, useLabStore } from "./state/labStore";
+import {
+  selectCircuitAssembled,
+  selectResistorConnected,
+} from "./state/selectors";
 import Breadboard from "./scene/Breadboard";
 import { getColumnSocketPair } from "./scene/breadboardSockets";
 
@@ -170,6 +174,17 @@ export default function App() {
   const frequencyHz = useLabStore(
     (state) => state.controls.frequencyHz
   );
+  const resistorConnected = useLabStore(
+    selectResistorConnected
+  );
+
+  const circuitAssembled = useLabStore(
+    selectCircuitAssembled
+  );
+
+  // My understanding:
+  // These selectors let the app read whether the resistor and complete
+  // circuit are actually connected according to the central lab state.
 
   // The drag plane converts the pointer ray into a predictable position on the bench.
   const dragPlane = useMemo(
@@ -308,9 +323,6 @@ export default function App() {
     document.body.style.cursor = "default";
   }
 
-  // Temporary spike condition. Later this will come from the real wiring selectors.
-  const circuitAssembled =
-    snappedColumn !== null;
 
   return (
     <div
