@@ -3,6 +3,15 @@ import {
     useSyncExternalStore,
 } from "react";
 
+// These are the only valid measurement locations for the
+// virtual current clamp.
+const VALID_CLAMP_POINTS = new Set([
+    null,
+    "P_R",
+    "P_C",
+    "P_TOT",
+]);
+
 // This is the starting state for one laboratory session.
 // All major parts of the simulation will eventually read/write through this state.
 const initialState = {
@@ -31,6 +40,7 @@ const initialState = {
     },
 
     clamp: {
+        // null means the probe is currently in its tray.
         point: null,
     },
 
@@ -64,7 +74,9 @@ const listeners = new Set();
 
 // Notify every subscriber that the state has changed.
 function emit() {
-    listeners.forEach((listener) => listener());
+    listeners.forEach((listener) =>
+        listener()
+    );
 }
 
 // Update the state and then notify React about the change.
@@ -116,6 +128,15 @@ export const labStore = {
 
     // Move the virtual current clamp to a measurement point.
     setClampPoint(point) {
+        // Reject accidental invalid measurement identifiers.
+        if (
+            !VALID_CLAMP_POINTS.has(
+                point
+            )
+        ) {
+            return;
+        }
+
         updateState((current) => ({
             ...current,
             clamp: {
@@ -169,31 +190,48 @@ export const labStore = {
     appendLog(entry) {
         updateState((current) => ({
             ...current,
-            log: [...current.log, entry],
+            log: [
+                ...current.log,
+                entry,
+            ],
         }));
     },
 
     // Return the laboratory to its initial state.
     reset() {
-        state = structuredClone(initialState);
+        state =
+            structuredClone(
+                initialState
+            );
+
         emit();
     },
 };
 
 // Connect React to our external store.
 // The selector lets a component subscribe to only the value it needs.
-export function useLabStore(selector) {
+export function useLabStore(
+    selector
+) {
     // This subscription function stays stable between React renders.
-    const subscribe = useCallback(
-        (listener) => labStore.subscribe(listener),
-        []
-    );
+    const subscribe =
+        useCallback(
+            (listener) =>
+                labStore.subscribe(
+                    listener
+                ),
+            []
+        );
 
     // React asks for the selected value whenever it needs a fresh snapshot.
-    const getSnapshot = useCallback(
-        () => selector(labStore.getState()),
-        [selector]
-    );
+    const getSnapshot =
+        useCallback(
+            () =>
+                selector(
+                    labStore.getState()
+                ),
+            [selector]
+        );
 
     return useSyncExternalStore(
         subscribe,
