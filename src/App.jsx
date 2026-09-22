@@ -296,11 +296,32 @@ export default function App() {
       ]);
 
       setSnappedColumn(candidate);
+
+      // Store the electrical connection using the actual socket IDs.
+      labStore.setWiring({
+        resistor: [
+          pair.hot.id,
+          pair.return.id,
+        ],
+      });
+
+
+
     } else {
-      // Failed drop: return the resistor to the tray.
+      // Failed drop: return the resistor to the component tray.
       setResistorPosition(TRAY_POSITION);
       setErrors((value) => value + 1);
       setSnappedColumn(null);
+
+      // Remove the resistor's electrical connection because it was not
+      // successfully placed on a legal A/B socket pair.
+      labStore.setWiring({
+        resistor: [null, null],
+      });
+
+      // MY UNDERSTANDING:
+      // Write in your own words why an invalid drop must also clear
+      // the resistor's wiring from the central lab state.
     }
 
     setCandidateColumn(null);
@@ -410,7 +431,10 @@ export default function App() {
               ? "none"
               : `column ${candidateColumn}`}
           </div>
-
+          <div>
+            <strong>Resistor connected:</strong>{" "}
+            {String(resistorConnected)}
+          </div>
           <div>
             <strong>Snapped:</strong>{" "}
             {snappedColumn === null
