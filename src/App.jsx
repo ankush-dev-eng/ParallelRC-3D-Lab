@@ -7,6 +7,7 @@ import React, {
 
 import {
   Canvas,
+  useFrame,
 } from "@react-three/fiber";
 
 import {
@@ -15,8 +16,10 @@ import {
 } from "./state/labStore";
 
 import {
+  isFiveXChallengeMet,
   selectCircuitAssembled,
   selectResistorConnected,
+  selectSimulationActive,
 } from "./state/selectors";
 
 import Breadboard from "./scene/Breadboard";
@@ -25,6 +28,7 @@ import CameraRig from "./scene/CameraRig";
 import CurrentClamp from "./scene/CurrentClamp";
 
 import Oscilloscope from "./components/Oscilloscope";
+import PhasorDiagram from "./scene/PhasorDiagram";
 
 import {
   getColumnSocketPair,
@@ -41,6 +45,17 @@ import {
 import {
   getClampCurrentRms,
 } from "./physics/measurement";
+
+import {
+  CAPACITOR_CURRENT_LIMIT_A,
+  CAPACITOR_RATED_VOLTAGE_V,
+  STRESS_RECOVERY_OVERLOAD,
+  STRESS_RECOVERY_THRESHOLD,
+  STRESS_TRIP_THRESHOLD,
+  STRESS_WARNING_THRESHOLD,
+  getSafetyOverload,
+  nextCapStress,
+} from "./physics/safety";
 
 // ------------------------------------------------------------
 // REFERENCE EXPERIMENT
@@ -261,6 +276,123 @@ function Resistor({
 }
 
 // ------------------------------------------------------------
+// SIMULATION RUNTIME
+// ------------------------------------------------------------
+
+// The runtime owns time-dependent safety behavior.
+// Electrical formulas remain pure and are not advanced here.
+function SimulationRuntime({
+  electricalSnapshot,
+}) {
+  const accumulatorRef =
+    useRef(0);
+
+  useFrame((_, delta) => {
+    accumulatorRef.current +=
+      delta;
+
+    // Write safety state at 20 Hz instead of every render frame.
+    if (
+      accumulatorRef.current <
+      0.05
+    ) {
+      return;
+    }
+
+    const dt =
+      accumulatorRef.current;
+
+    accumulatorRef.current = 0;
+
+    const currentState =
+      labStore.getState();
+
+    const generatorOn =
+      currentState.controls
+        .generatorOn;
+
+    const circuitAssembled =
+      selectCircuitAssembled(
+        currentState
+      );
+
+    // Stress only accumulates while the generator is powering
+    // a complete parallel RC circuit.
+    const overload =
+      generatorOn &&
+        circuitAssembled
+        ? getSafetyOverload({
+          voltageVrms:
+            currentState.controls
+              .voltageVrms,
+          currentA:
+            electricalSnapshot.IC,
+        })
+        : 0;
+
+    const currentStress =
+      currentState.safety
+        .capStress;
+
+    const nextStress =
+      nextCapStress(
+        currentStress,
+        overload,
+        dt
+      );
+
+    const shouldTrip =
+      generatorOn &&
+      circuitAssembled &&
+      !currentState.safety
+        .tripped &&
+      nextStress >=
+      STRESS_TRIP_THRESHOLD;
+
+    if (shouldTrip) {
+      // A trip immediately removes source power.
+      labStore.setSafety({
+        capStress:
+          STRESS_TRIP_THRESHOLD,
+        tripped: true,
+      });
+
+      labStore.setControls({
+        generatorOn: false,
+      });
+
+      // The guided safety step records the event once.
+      if (
+        !currentState.progress
+          .safetyTripObserved
+      ) {
+        labStore.setProgress({
+          safetyTripObserved:
+            true,
+        });
+      }
+
+      return;
+    }
+
+    // Avoid unnecessary React/store updates when the change is tiny.
+    if (
+      Math.abs(
+        nextStress -
+        currentStress
+      ) >= 0.005
+    ) {
+      labStore.setSafety({
+        capStress:
+          nextStress,
+      });
+    }
+  });
+
+  return null;
+}
+
+// ------------------------------------------------------------
 // LAB SCENE
 // ------------------------------------------------------------
 
@@ -279,6 +411,10 @@ function LabScene({
   onClampPointChange,
   onPointerMove,
   onPointerUp,
+  electricalSnapshot,
+  simulationActive,
+  capStress,
+  safetyTripped,
 }) {
   const candidateColumn =
     dragState.candidateColumn;
@@ -312,6 +448,13 @@ function LabScene({
       {/* Smooth three-view camera controller. */}
       <CameraRig
         view={cameraView}
+      />
+
+      {/* Time-dependent safety logic lives in the runtime coordinator. */}
+      <SimulationRuntime
+        electricalSnapshot={
+          electricalSnapshot
+        }
       />
 
       <color
@@ -419,6 +562,12 @@ function LabScene({
           dragState.component ===
           "capacitor"
         }
+        capStress={
+          capStress
+        }
+        tripped={
+          safetyTripped
+        }
         onPointerDown={
           onCapacitorPointerDown
         }
@@ -443,6 +592,16 @@ function LabScene({
           onClampPointChange
         }
       />
+
+      {/* Step 6 phasor renderer. It receives the shared snapshot and
+          never calculates or mutates laboratory state. */}
+      {cameraView === "analysis" && (
+        <PhasorDiagram
+          snapshot={electricalSnapshot}
+          simulationActive={simulationActive}
+          position={[3.0, 0.9, 1.6]}
+        />
+      )}
 
       {/* Simple component tray. */}
       <mesh
@@ -745,6 +904,25 @@ export default function App() {
       selectCircuitAssembled
     );
 
+  const simulationActive =
+    useLabStore(
+      selectSimulationActive
+    );
+
+  const capStress =
+    useLabStore(
+      (state) =>
+        state.safety
+          .capStress
+    );
+
+  const safetyTripped =
+    useLabStore(
+      (state) =>
+        state.safety
+          .tripped
+    );
+
   // --------------------------------------------------------
   // LIVE ELECTRICAL SNAPSHOT
   // --------------------------------------------------------
@@ -779,6 +957,26 @@ export default function App() {
     capacitanceUf ===
     REFERENCE_SETUP.capacitanceUf;
 
+  // Step 6 evaluates its challenge using the same electrical snapshot
+  // that is passed to the phasor and oscilloscope.
+  const fiveXChallengeMet =
+    isFiveXChallengeMet(
+      {
+        voltageVrms,
+        frequencyHz,
+        resistanceOhm,
+        capacitanceUf,
+        simulationActive,
+      },
+      electricalSnapshot
+    );
+
+  const currentRatio =
+    electricalSnapshot.IR > 0
+      ? electricalSnapshot.IC /
+      electricalSnapshot.IR
+      : 0;
+
   // The virtual clamp simply selects one of the currents
   // already calculated by the physics engine.
   const measuredCurrentRmsA =
@@ -790,6 +988,28 @@ export default function App() {
         circuitAssembled,
       }
     );
+
+  // Safety uses the same live electrical snapshot as the other instruments.
+  // The current profile is limited by a 16 V rating and 50 mA current limit.
+  const safetyOverload =
+    circuitAssembled
+      ? getSafetyOverload({
+        voltageVrms,
+        currentA:
+          electricalSnapshot.IC,
+      })
+      : 0;
+
+  const safetyRecoveryReady =
+    safetyTripped &&
+    capStress <=
+    STRESS_RECOVERY_THRESHOLD &&
+    safetyOverload <=
+    STRESS_RECOVERY_OVERLOAD;
+
+  const safetyWarning =
+    capStress >=
+    STRESS_WARNING_THRESHOLD;
 
   // MY UNDERSTANDING:
   // The live values are always recalculated from the current controls.
@@ -1067,6 +1287,32 @@ export default function App() {
       changed = true;
     }
 
+    // Step 6: keep the reference R/C values and reach IC ≈ 5 × IR.
+    // Once completed, the challenge remains latched.
+    if (
+      completedSteps[4] &&
+      fiveXChallengeMet &&
+      !completedSteps[5]
+    ) {
+      completedSteps[5] =
+        true;
+
+      changed = true;
+    }
+
+    // Step 7 requires both the safety trip and successful recovery.
+    if (
+      completedSteps[5] &&
+      progress.safetyTripObserved &&
+      progress.safetyRecoveryObserved &&
+      !completedSteps[6]
+    ) {
+      completedSteps[6] =
+        true;
+
+      changed = true;
+    }
+
     // Find the highest completed step.
     let highestCompleted =
       -1;
@@ -1111,6 +1357,12 @@ export default function App() {
         completedSteps,
         currentStep:
           safeStep,
+        ...(completedSteps[5]
+          ? {
+            fiveXChallengeCompleted:
+              true,
+          }
+          : {}),
       });
     }
   }, [
@@ -1118,6 +1370,8 @@ export default function App() {
     isReferenceSetup,
     measurementLog,
     cameraView,
+    fiveXChallengeMet,
+    progress,
   ]);
 
   // MY UNDERSTANDING:
@@ -1375,9 +1629,35 @@ export default function App() {
   }
 
   function toggleGenerator() {
+    // Turning power off is always allowed.
+    if (generatorOn) {
+      labStore.setControls({
+        generatorOn: false,
+      });
+
+      return;
+    }
+
+    // After a trip, the learner must lower the operating point and
+    // wait for stored stress to decay before restarting the source.
+    if (safetyTripped) {
+      if (!safetyRecoveryReady) {
+        return;
+      }
+
+      labStore.setSafety({
+        capStress: 0,
+        tripped: false,
+      });
+
+      labStore.setProgress({
+        safetyRecoveryObserved:
+          true,
+      });
+    }
+
     labStore.setControls({
-      generatorOn:
-        !generatorOn,
+      generatorOn: true,
     });
   }
 
@@ -1507,6 +1787,18 @@ export default function App() {
           }
           onPointerUp={
             endDrag
+          }
+          electricalSnapshot={
+            electricalSnapshot
+          }
+          simulationActive={
+            simulationActive
+          }
+          capStress={
+            capStress
+          }
+          safetyTripped={
+            safetyTripped
           }
         />
       </div>
@@ -1777,9 +2069,11 @@ export default function App() {
             borderRadius:
               9,
             background:
-              generatorOn
-                ? "#16a34a"
-                : "#374151",
+              safetyTripped
+                ? "#991b1b"
+                : generatorOn
+                  ? "#16a34a"
+                  : "#374151",
             color:
               "#ffffff",
             fontWeight:
@@ -1788,10 +2082,15 @@ export default function App() {
               "pointer",
           }}
         >
-          AC Generator:
-          {generatorOn
-            ? " ON"
-            : " OFF"}
+          {safetyTripped
+            ? safetyRecoveryReady
+              ? "Restart after safety trip"
+              : "Safety trip — reduce stress"
+            : "AC Generator:"}
+          {!safetyTripped &&
+            (generatorOn
+              ? " ON"
+              : " OFF")}
         </button>
 
         <button
@@ -1825,6 +2124,155 @@ export default function App() {
             ? " ON"
             : " OFF"}
         </button>
+
+        {/* ------------------------------------------------
+                    CAPACITOR SAFETY
+                ------------------------------------------------- */}
+
+        <div
+          style={{
+            marginTop: 12,
+            padding: 10,
+            borderRadius: 10,
+            background:
+              safetyTripped
+                ? "rgba(127, 29, 29, 0.18)"
+                : safetyWarning
+                  ? "rgba(146, 64, 14, 0.18)"
+                  : "rgba(15, 23, 42, 0.8)",
+            border:
+              safetyTripped
+                ? "1px solid rgba(239, 68, 68, 0.55)"
+                : safetyWarning
+                  ? "1px solid rgba(245, 158, 11, 0.55)"
+                  : "1px solid rgba(71, 85, 105, 0.45)",
+            fontSize: 12,
+            lineHeight: 1.6,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent:
+                "space-between",
+              alignItems: "center",
+              marginBottom: 6,
+            }}
+          >
+            <strong>
+              CAPACITOR SAFETY
+            </strong>
+
+            <strong
+              style={{
+                color:
+                  safetyTripped
+                    ? "#f87171"
+                    : safetyWarning
+                      ? "#fbbf24"
+                      : "#22c55e",
+              }}
+            >
+              {safetyTripped
+                ? safetyRecoveryReady
+                  ? "READY TO RESTART"
+                  : "TRIPPED"
+                : safetyWarning
+                  ? "WARNING"
+                  : "NORMAL"}
+            </strong>
+          </div>
+
+          <div
+            style={{
+              color: "#94a3b8",
+              marginBottom: 6,
+            }}
+          >
+            Rating:{" "}
+            {CAPACITOR_RATED_VOLTAGE_V} V · Current limit:{" "}
+            {(
+              CAPACITOR_CURRENT_LIMIT_A *
+              1000
+            ).toFixed(0)} mA
+          </div>
+
+          <div>
+            <strong>
+              Stress:
+            </strong>{" "}
+            {(
+              capStress *
+              100
+            ).toFixed(0)}%
+          </div>
+
+          <div>
+            <strong>
+              Load:
+            </strong>{" "}
+            {safetyOverload.toFixed(2)}× limit
+          </div>
+
+          <div
+            style={{
+              height: 7,
+              marginTop: 7,
+              borderRadius: 999,
+              background: "#1e293b",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    capStress * 100
+                  )
+                )
+                  }%`,
+                height: "100%",
+                background:
+                  safetyTripped
+                    ? "#ef4444"
+                    : safetyWarning
+                      ? "#f59e0b"
+                      : "#22c55e",
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              marginTop: 7,
+              color:
+                safetyTripped
+                  ? "#fca5a5"
+                  : safetyWarning
+                    ? "#fcd34d"
+                    : "#94a3b8",
+            }}
+          >
+            {safetyTripped
+              ? safetyRecoveryReady
+                ? "Stress is low enough. Restart the generator to complete recovery."
+                : "Reduce frequency or voltage, then wait for the stored stress to fall before restarting."
+              : safetyWarning
+                ? "Capacitor stress is elevated. Reduce the operating point before the trip threshold is reached."
+                : "Normal operating range."}
+          </div>
+        </div>
+
+        {/* MY UNDERSTANDING:
+            Safety is time-dependent, so the runtime advances capStress
+            while the generator powers a complete circuit. The warning
+            starts at 80%, an overload can reach the trip threshold, and
+            the trip cuts generator power. Recovery uses hysteresis:
+            lower the operating point, let stored stress decay, then
+            restart the generator.
+        */}
 
         {/* ------------------------------------------------
                     CLAMP STATUS
@@ -2374,6 +2822,43 @@ export default function App() {
               ? "ON"
               : "OFF"}
           </div>
+
+          <div>
+            <strong>
+              IC / IR:
+            </strong>{" "}
+            {currentRatio.toFixed(2)}×
+          </div>
+
+          <div>
+            <strong>
+              Simulation:
+            </strong>{" "}
+            {simulationActive
+              ? "ACTIVE"
+              : "IDLE"}
+          </div>
+
+          <div>
+            <strong>
+              Safety:
+            </strong>{" "}
+            {safetyTripped
+              ? "TRIPPED"
+              : safetyWarning
+                ? "WARNING"
+                : "NORMAL"}
+          </div>
+
+          <div>
+            <strong>
+              Cap stress:
+            </strong>{" "}
+            {(
+              capStress *
+              100
+            ).toFixed(0)}%
+          </div>
         </div>
 
         {/* ------------------------------------------------
@@ -2561,6 +3046,117 @@ export default function App() {
         </button>
       </div>
 
+      {/* Step 6 phasor analysis HUD. */}
+      {cameraView === "analysis" && (
+        <div
+          style={{
+            position: "absolute",
+            top: 18,
+            right: 18,
+            width: 300,
+            padding: 14,
+            borderRadius: 14,
+            background:
+              "rgba(8, 12, 20, 0.93)",
+            border:
+              "1px solid rgba(139, 92, 246, 0.45)",
+            boxShadow:
+              "0 12px 30px rgba(0, 0, 0, 0.25)",
+            zIndex: 10,
+            fontSize: 12,
+            lineHeight: 1.6,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent:
+                "space-between",
+              alignItems: "center",
+              marginBottom: 6,
+            }}
+          >
+            <strong>
+              PHASOR ANALYSIS
+            </strong>
+
+            <span
+              style={{
+                color:
+                  progress.fiveXChallengeCompleted ||
+                    fiveXChallengeMet
+                    ? "#22c55e"
+                    : "#94a3b8",
+                fontWeight: 800,
+              }}
+            >
+              {progress.fiveXChallengeCompleted
+                ? "5× COMPLETE"
+                : fiveXChallengeMet
+                  ? "5× REACHED"
+                  : "STEP 6"}
+            </span>
+          </div>
+
+          <div
+            style={{
+              color: "#94a3b8",
+              marginBottom: 8,
+            }}
+          >
+            Vector lengths use a fixed
+            80 mA visual reference.
+            Labels show true RMS values.
+          </div>
+
+          <div>
+            <strong>IR:</strong>{" "}
+            {(electricalSnapshot.IR * 1000).toFixed(
+              2
+            )} mA
+          </div>
+
+          <div>
+            <strong>IC:</strong>{" "}
+            {(electricalSnapshot.IC * 1000).toFixed(
+              2
+            )} mA
+          </div>
+
+          <div>
+            <strong>IT:</strong>{" "}
+            {(electricalSnapshot.IT * 1000).toFixed(
+              2
+            )} mA
+          </div>
+
+          <div>
+            <strong>φ:</strong>{" "}
+            {electricalSnapshot.phiDeg.toFixed(
+              1
+            )}° lead
+          </div>
+
+          <div style={{ marginTop: 5 }}>
+            <strong>IC / IR:</strong>{" "}
+            {currentRatio.toFixed(2)}×
+          </div>
+
+          <div
+            style={{
+              marginTop: 8,
+              color: "#d8b4fe",
+            }}
+          >
+            {progress.fiveXChallengeCompleted
+              ? "Frequency challenge complete. The gate is latched."
+              : fiveXChallengeMet
+                ? "Target reached. Step 6 will now latch."
+                : "Sweep frequency until IC is approximately five times IR."}
+          </div>
+        </div>
+      )}
+
       {/* Virtual oscilloscope. */}
       {scopeOn && (
         <Oscilloscope
@@ -2623,10 +3219,11 @@ export default function App() {
             "nowrap",
         }}
       >
-        Move the current
-        clamp between the
-        glowing measurement
-        points
+        {progress.currentStep === 7
+          ? "Step 7 · Trigger the safety trip, reduce stress, then restart"
+          : progress.currentStep === 6
+            ? "Step 6 · Sweep frequency until IC ≈ 5 × IR"
+            : "Move the current clamp between the glowing measurement points"}
       </div>
     </div>
   );

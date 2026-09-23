@@ -1,5 +1,5 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
 // These are the three planned laboratory views.
@@ -7,16 +7,27 @@ const CAMERA_PRESETS = {
     bench: {
         position: [0, 8.5, 8.5],
         target: [0, 0, 0],
+        fov: 50,
     },
 
     board: {
         position: [0, 5.5, 5.0],
         target: [0, 0, 0],
+        fov: 50,
     },
 
     analysis: {
-        position: [0, 7.0, 10.5],
-        target: [0, 0.2, 0],
+        // Slightly farther back gives the analysis view
+        // enough room to show the circuit and phasor diagram.
+        position: [0, 7.4, 12.5],
+
+        // Shift the framing slightly toward the right side
+        // where the capacitor and analysis content are located.
+        target: [0.45, 0.2, 0.4],
+
+        // A wider field of view helps prevent the capacitor
+        // from being cropped out of the analysis view.
+        fov: 55,
     },
 };
 
@@ -34,6 +45,22 @@ export default function CameraRig({
     const desiredTarget = useRef(
         new THREE.Vector3()
     );
+
+    // Apply the selected camera's field of view only
+    // when the active view changes.
+    useEffect(() => {
+        const preset =
+            CAMERA_PRESETS[view] ??
+            CAMERA_PRESETS.bench;
+
+        // The project uses a perspective camera.
+        // Keep this guard so the rig does not break
+        // if the camera type changes later.
+        if ("fov" in camera) {
+            camera.fov = preset.fov;
+            camera.updateProjectionMatrix();
+        }
+    }, [view, camera]);
 
     // Move the camera toward the selected preset.
     useFrame((_, delta) => {
@@ -72,5 +99,9 @@ export default function CameraRig({
 }
 
 // MY UNDERSTANDING:
-// Write in your own words what CameraRig controls and why camera
-// movement should stay separate from the circuit's physics and wiring.
+// CameraRig controls only how the 3D laboratory is viewed.
+// Each view has its own position, target, and field of view.
+// The Analysis camera is slightly farther away and wider so
+// the capacitor, circuit, and phasor analysis can fit together.
+// Camera movement stays separate from physics and wiring because
+// changing the camera must never change the electrical simulation.
