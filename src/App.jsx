@@ -57,12 +57,15 @@ import {
   nextCapStress,
 } from "./physics/safety";
 
+import {
+  buildLabReport,
+  formatLabReportText,
+} from "./physics/report";
+
 // ------------------------------------------------------------
 // REFERENCE EXPERIMENT
 // ------------------------------------------------------------
 
-// These values are the fixed reference configuration specified
-// for the main teaching experiment.
 const REFERENCE_SETUP = {
   voltageVrms: 5,
   frequencyHz: 1000,
@@ -70,11 +73,6 @@ const REFERENCE_SETUP = {
   capacitanceUf: 0.1,
 };
 
-// Calculate the reference values once from the same physics engine
-// used by the live experiment.
-//
-// This is important because the reference panel and the live panel
-// must use the same mathematical formulas.
 const REFERENCE_SNAPSHOT =
   getElectricalSnapshot(
     REFERENCE_SETUP
@@ -88,14 +86,12 @@ const SNAP_RADIUS = 1.0;
 
 const DRAG_HEIGHT = 0.42;
 
-// Initial resistor tray location.
 const TRAY_POSITION = [
   5.0,
   DRAG_HEIGHT,
   -2.5,
 ];
 
-// Initial capacitor tray location.
 const CAPACITOR_TRAY_POSITION = [
   6.5,
   DRAG_HEIGHT,
@@ -107,7 +103,7 @@ const CAPACITOR_TRAY_POSITION = [
 // ------------------------------------------------------------
 
 // This component only renders the resistor.
-// Dragging and circuit state are handled outside this component.
+// Dragging and circuit state are handled by App.
 function Resistor({
   position,
   dragging,
@@ -117,16 +113,22 @@ function Resistor({
 }) {
   return (
     <group
-      position={position}
+      position={
+        position
+      }
+
       onPointerDown={
         onPointerDown
       }
+
       onPointerMove={
         onPointerMove
       }
+
       onPointerUp={
         onPointerUp
       }
+
       onPointerOver={(
         event
       ) => {
@@ -135,6 +137,7 @@ function Resistor({
         document.body.style.cursor =
           "grab";
       }}
+
       onPointerOut={() => {
         if (!dragging) {
           document.body.style.cursor =
@@ -142,7 +145,6 @@ function Resistor({
         }
       }}
     >
-      {/* Main resistor body. */}
       <mesh castShadow>
         <cylinderGeometry
           args={[
@@ -163,7 +165,6 @@ function Resistor({
         />
       </mesh>
 
-      {/* Top resistor lead. */}
       <mesh
         position={[
           0,
@@ -187,7 +188,6 @@ function Resistor({
         />
       </mesh>
 
-      {/* Bottom resistor lead. */}
       <mesh
         position={[
           0,
@@ -211,7 +211,6 @@ function Resistor({
         />
       </mesh>
 
-      {/* Simple visual resistor bands. */}
       <mesh
         position={[
           0,
@@ -280,7 +279,7 @@ function Resistor({
 // ------------------------------------------------------------
 
 // The runtime owns time-dependent safety behavior.
-// Electrical formulas remain pure and are not advanced here.
+// Electrical formulas remain pure.
 function SimulationRuntime({
   electricalSnapshot,
 }) {
@@ -291,7 +290,6 @@ function SimulationRuntime({
     accumulatorRef.current +=
       delta;
 
-    // Write safety state at 20 Hz instead of every render frame.
     if (
       accumulatorRef.current <
       0.05
@@ -316,15 +314,15 @@ function SimulationRuntime({
         currentState
       );
 
-    // Stress only accumulates while the generator is powering
-    // a complete parallel RC circuit.
     const overload =
       generatorOn &&
         circuitAssembled
         ? getSafetyOverload({
           voltageVrms:
-            currentState.controls
+            currentState
+              .controls
               .voltageVrms,
+
           currentA:
             electricalSnapshot.IC,
         })
@@ -350,18 +348,18 @@ function SimulationRuntime({
       STRESS_TRIP_THRESHOLD;
 
     if (shouldTrip) {
-      // A trip immediately removes source power.
       labStore.setSafety({
         capStress:
           STRESS_TRIP_THRESHOLD,
-        tripped: true,
+        tripped:
+          true,
       });
 
       labStore.setControls({
-        generatorOn: false,
+        generatorOn:
+          false,
       });
 
-      // The guided safety step records the event once.
       if (
         !currentState.progress
           .safetyTripObserved
@@ -375,12 +373,12 @@ function SimulationRuntime({
       return;
     }
 
-    // Avoid unnecessary React/store updates when the change is tiny.
     if (
       Math.abs(
         nextStress -
         currentStress
-      ) >= 0.005
+      ) >=
+      0.005
     ) {
       labStore.setSafety({
         capStress:
@@ -392,12 +390,16 @@ function SimulationRuntime({
   return null;
 }
 
+// MY UNDERSTANDING:
+// SimulationRuntime is the only place that advances time-dependent
+// safety state. The physics engine still calculates electrical values
+// from the current controls, while this runtime integrates capacitor
+// stress and performs the automatic safety trip.
+
 // ------------------------------------------------------------
 // LAB SCENE
 // ------------------------------------------------------------
 
-// The scene only receives data and interaction callbacks.
-// It does not own the experiment state.
 function LabScene({
   cameraView,
   dragState,
@@ -419,8 +421,6 @@ function LabScene({
   const candidateColumn =
     dragState.candidateColumn;
 
-  // Show the snap column for whichever component is currently
-  // being dragged.
   const displayedSnappedColumn =
     dragState.component ===
       "capacitor"
@@ -430,9 +430,12 @@ function LabScene({
   return (
     <Canvas
       style={{
-        width: "100%",
-        height: "100%",
+        width:
+          "100%",
+        height:
+          "100%",
       }}
+
       camera={{
         position: [
           0,
@@ -443,14 +446,15 @@ function LabScene({
         near: 0.1,
         far: 100,
       }}
+
       shadows
     >
-      {/* Smooth three-view camera controller. */}
       <CameraRig
-        view={cameraView}
+        view={
+          cameraView
+        }
       />
 
-      {/* Time-dependent safety logic lives in the runtime coordinator. */}
       <SimulationRuntime
         electricalSnapshot={
           electricalSnapshot
@@ -464,12 +468,10 @@ function LabScene({
         ]}
       />
 
-      {/* General laboratory illumination. */}
       <ambientLight
         intensity={0.8}
       />
 
-      {/* Main directional light. */}
       <directionalLight
         position={[
           4,
@@ -480,7 +482,6 @@ function LabScene({
         castShadow
       />
 
-      {/* Additional fill light. */}
       <pointLight
         position={[
           0,
@@ -493,7 +494,6 @@ function LabScene({
         castShadow
       />
 
-      {/* Procedural laboratory bench. */}
       <mesh
         rotation={[
           -Math.PI / 2,
@@ -515,7 +515,6 @@ function LabScene({
         />
       </mesh>
 
-      {/* Reusable breadboard and socket layout. */}
       <Breadboard
         candidateColumn={
           candidateColumn
@@ -525,7 +524,6 @@ function LabScene({
         }
       />
 
-      {/* Resistor. */}
       <Resistor
         position={
           dragState.component ===
@@ -534,22 +532,25 @@ function LabScene({
             ? dragState.position
             : resistorPosition
         }
+
         dragging={
           dragState.component ===
           "resistor"
         }
+
         onPointerDown={
           onResistorPointerDown
         }
+
         onPointerMove={
           onPointerMove
         }
+
         onPointerUp={
           onPointerUp
         }
       />
 
-      {/* Capacitor. */}
       <Capacitor
         position={
           dragState.component ===
@@ -558,52 +559,70 @@ function LabScene({
             ? dragState.position
             : capacitorPosition
         }
+
         dragging={
           dragState.component ===
           "capacitor"
         }
+
         capStress={
           capStress
         }
+
         tripped={
           safetyTripped
         }
+
         onPointerDown={
           onCapacitorPointerDown
         }
+
         onPointerMove={
           onPointerMove
         }
+
         onPointerUp={
           onPointerUp
         }
       />
 
-      {/* Virtual AC current clamp. */}
       <CurrentClamp
-        point={clampPoint}
+        point={
+          clampPoint
+        }
+
         resistorColumn={
           resistorSnappedColumn
         }
+
         capacitorColumn={
           capacitorSnappedColumn
         }
+
         onPointChange={
           onClampPointChange
         }
       />
 
-      {/* Step 6 phasor renderer. It receives the shared snapshot and
-          never calculates or mutates laboratory state. */}
-      {cameraView === "analysis" && (
-        <PhasorDiagram
-          snapshot={electricalSnapshot}
-          simulationActive={simulationActive}
-          position={[3.0, 0.9, 1.6]}
-        />
-      )}
+      {cameraView ===
+        "analysis" && (
+          <PhasorDiagram
+            snapshot={
+              electricalSnapshot
+            }
 
-      {/* Simple component tray. */}
+            simulationActive={
+              simulationActive
+            }
+
+            position={[
+              3.0,
+              0.9,
+              1.6,
+            ]}
+          />
+        )}
+
       <mesh
         position={
           TRAY_POSITION
@@ -630,7 +649,6 @@ function LabScene({
 // UI HELPERS
 // ------------------------------------------------------------
 
-// Format frequency into a readable value.
 function formatFrequency(
   frequencyHz
 ) {
@@ -647,7 +665,6 @@ function formatFrequency(
   return `${frequencyHz} Hz`;
 }
 
-// Reusable slider for electrical controls.
 function ControlSlider({
   label,
   value,
@@ -660,13 +677,15 @@ function ControlSlider({
   return (
     <div
       style={{
-        display: "grid",
+        display:
+          "grid",
         gap: 6,
       }}
     >
       <div
         style={{
-          display: "flex",
+          display:
+            "flex",
           justifyContent:
             "space-between",
           alignItems:
@@ -690,10 +709,18 @@ function ControlSlider({
 
       <input
         type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
+        min={
+          min
+        }
+        max={
+          max
+        }
+        step={
+          step
+        }
+        value={
+          value
+        }
         onChange={(
           event
         ) =>
@@ -706,7 +733,8 @@ function ControlSlider({
           )
         }
         style={{
-          width: "100%",
+          width:
+            "100%",
           cursor:
             "pointer",
         }}
@@ -737,15 +765,40 @@ export default function App() {
   const [
     resistorSnappedColumn,
     setResistorSnappedColumn,
-  ] = useState(null);
+  ] = useState(
+    null
+  );
 
   const [
     capacitorSnappedColumn,
     setCapacitorSnappedColumn,
+  ] = useState(
+    null
+  );
+
+  const [
+    errors,
+    setErrors,
+  ] = useState(0);
+
+  const [
+    reportVisible,
+    setReportVisible,
+  ] = useState(false);
+
+  const [
+    generatedReport,
+    setGeneratedReport,
   ] = useState(null);
 
-  const [errors, setErrors] =
-    useState(0);
+  const [
+    reflection,
+    setReflection,
+  ] = useState({
+    observation: "",
+    frequencyExplanation: "",
+    safetyExplanation: "",
+  });
 
   // --------------------------------------------------------
   // CAMERA
@@ -756,10 +809,6 @@ export default function App() {
     setCameraView,
   ] = useState("bench");
 
-  // Keyboard shortcuts:
-  // 1 = Bench
-  // 2 = Board
-  // 3 = Analysis
   useEffect(() => {
     function handleKeyDown(
       event
@@ -806,8 +855,8 @@ export default function App() {
   }, []);
 
   // MY UNDERSTANDING:
-  // Camera state only controls what the learner is looking at.
-  // It does not change the circuit or any electrical calculation.
+  // Camera state controls only the learner's view of the 3D scene.
+  // It does not modify the circuit or electrical calculations.
 
   // --------------------------------------------------------
   // CENTRAL STORE VALUES
@@ -924,10 +973,9 @@ export default function App() {
     );
 
   // --------------------------------------------------------
-  // LIVE ELECTRICAL SNAPSHOT
+  // LIVE ELECTRICAL VALUES
   // --------------------------------------------------------
 
-  // The live experiment always uses the central physics engine.
   const electricalSnapshot =
     useMemo(
       () =>
@@ -945,20 +993,20 @@ export default function App() {
       ]
     );
 
-  // Determine whether the controls currently match
-  // the official reference setup.
   const isReferenceSetup =
     voltageVrms ===
-    REFERENCE_SETUP.voltageVrms &&
+    REFERENCE_SETUP
+      .voltageVrms &&
     frequencyHz ===
-    REFERENCE_SETUP.frequencyHz &&
+    REFERENCE_SETUP
+      .frequencyHz &&
     resistanceOhm ===
-    REFERENCE_SETUP.resistanceOhm &&
+    REFERENCE_SETUP
+      .resistanceOhm &&
     capacitanceUf ===
-    REFERENCE_SETUP.capacitanceUf;
+    REFERENCE_SETUP
+      .capacitanceUf;
 
-  // Step 6 evaluates its challenge using the same electrical snapshot
-  // that is passed to the phasor and oscilloscope.
   const fiveXChallengeMet =
     isFiveXChallengeMet(
       {
@@ -972,13 +1020,12 @@ export default function App() {
     );
 
   const currentRatio =
-    electricalSnapshot.IR > 0
+    electricalSnapshot.IR >
+      0
       ? electricalSnapshot.IC /
       electricalSnapshot.IR
       : 0;
 
-  // The virtual clamp simply selects one of the currents
-  // already calculated by the physics engine.
   const measuredCurrentRmsA =
     getClampCurrentRms(
       clampPoint,
@@ -989,8 +1036,10 @@ export default function App() {
       }
     );
 
-  // Safety uses the same live electrical snapshot as the other instruments.
-  // The current profile is limited by a 16 V rating and 50 mA current limit.
+  // --------------------------------------------------------
+  // SAFETY VALUES
+  // --------------------------------------------------------
+
   const safetyOverload =
     circuitAssembled
       ? getSafetyOverload({
@@ -1011,18 +1060,22 @@ export default function App() {
     capStress >=
     STRESS_WARNING_THRESHOLD;
 
+  const reportReady =
+    measurementLog.length >
+    0 &&
+    progress.currentStep >=
+    8;
+
   // MY UNDERSTANDING:
-  // The live values are always recalculated from the current controls.
-  // The reference values remain fixed and act as the expected result
-  // for the standard experiment.
+  // The safety values are derived from the same electrical snapshot
+  // used everywhere else. The stored capStress is the time-dependent
+  // part, while warning/trip/recovery readiness are derived states.
 
   // --------------------------------------------------------
   // CLAMP DEFAULT
   // --------------------------------------------------------
 
   useEffect(() => {
-    // When the complete circuit first exists,
-    // put the clamp at the total-current point.
     if (
       circuitAssembled &&
       clampPoint === null
@@ -1044,7 +1097,6 @@ export default function App() {
     useRef(null);
 
   useEffect(() => {
-    // Cancel any older pending measurement.
     if (
       measurementTimerRef.current !==
       null
@@ -1057,8 +1109,6 @@ export default function App() {
         null;
     }
 
-    // A valid measurement requires:
-    // source ON + complete circuit + valid clamp point.
     if (
       !generatorOn ||
       !circuitAssembled ||
@@ -1075,66 +1125,66 @@ export default function App() {
       capacitanceUf,
     ].join("|");
 
-    // Wait until the learner keeps the same measurement
-    // stable for half a second.
     measurementTimerRef.current =
-      setTimeout(() => {
-        const currentState =
-          labStore.getState();
+      setTimeout(
+        () => {
+          const currentState =
+            labStore.getState();
 
-        const lastEntry =
-          currentState.log[
-          currentState
-            .log
-            .length - 1
-          ];
+          const lastEntry =
+            currentState.log[
+            currentState
+              .log.length - 1
+            ];
 
-        const lastKey =
-          lastEntry
-            ? [
-              lastEntry.point,
-              lastEntry.frequencyHz,
-              lastEntry.voltageVrms,
-              lastEntry.resistanceOhm,
-              lastEntry.capacitanceUf,
-            ].join("|")
-            : null;
+          const lastKey =
+            lastEntry
+              ? [
+                lastEntry.point,
+                lastEntry.frequencyHz,
+                lastEntry.voltageVrms,
+                lastEntry.resistanceOhm,
+                lastEntry.capacitanceUf,
+              ].join("|")
+              : null;
 
-        // Prevent duplicate consecutive notebook rows.
-        if (
-          measurementKey ===
-          lastKey
-        ) {
-          return;
-        }
+          if (
+            measurementKey ===
+            lastKey
+          ) {
+            return;
+          }
 
-        const theoreticalCurrentRmsA =
-          getClampCurrentRms(
-            clampPoint,
-            electricalSnapshot,
-            {
-              generatorOn: true,
-              circuitAssembled:
-                true,
-            }
-          );
+          const theoreticalCurrentRmsA =
+            getClampCurrentRms(
+              clampPoint,
+              electricalSnapshot,
+              {
+                generatorOn:
+                  true,
+                circuitAssembled:
+                  true,
+              }
+            );
 
-        labStore.appendLog({
-          point:
-            clampPoint,
-          voltageVrms,
-          frequencyHz,
-          resistanceOhm,
-          capacitanceUf,
-          measuredCurrentRmsA,
-          theoreticalCurrentRmsA,
-          timestamp:
-            Date.now(),
-        });
+          labStore.appendLog({
+            point:
+              clampPoint,
+            voltageVrms,
+            frequencyHz,
+            resistanceOhm,
+            capacitanceUf,
+            measuredCurrentRmsA,
+            theoreticalCurrentRmsA,
+            timestamp:
+              Date.now(),
+          });
 
-        measurementTimerRef.current =
-          null;
-      }, 500);
+          measurementTimerRef.current =
+            null;
+        },
+        500
+      );
 
     return () => {
       if (
@@ -1162,8 +1212,9 @@ export default function App() {
   ]);
 
   // MY UNDERSTANDING:
-  // We don't record a reading on every frame.
-  // The measurement must remain stable briefly before entering the log.
+  // The notebook is updated only after the learner keeps one measurement
+  // stable for 500 ms. That prevents every render frame from becoming a
+  // separate measurement row.
 
   // --------------------------------------------------------
   // GUIDED PROGRESS
@@ -1179,19 +1230,21 @@ export default function App() {
         .completedSteps,
     ];
 
-    let changed = false;
+    let changed =
+      false;
 
-    // Step 1: orientation/interface is active.
+    // Step 1.
     if (
       !completedSteps[0]
     ) {
       completedSteps[0] =
         true;
 
-      changed = true;
+      changed =
+        true;
     }
 
-    // Step 2: both R and C are connected.
+    // Step 2.
     if (
       circuitAssembled &&
       !completedSteps[1]
@@ -1199,10 +1252,11 @@ export default function App() {
       completedSteps[1] =
         true;
 
-      changed = true;
+      changed =
+        true;
     }
 
-    // Step 3: exact reference controls are loaded.
+    // Step 3.
     if (
       isReferenceSetup &&
       !completedSteps[2]
@@ -1210,11 +1264,11 @@ export default function App() {
       completedSteps[2] =
         true;
 
-      changed = true;
+      changed =
+        true;
     }
 
-    // Step 4:
-    // both reference branch-current measurements must exist.
+    // Step 4.
     const hasReferencePR =
       measurementLog.some(
         (entry) =>
@@ -1254,11 +1308,11 @@ export default function App() {
       completedSteps[3] =
         true;
 
-      changed = true;
+      changed =
+        true;
     }
 
-    // Step 5:
-    // total current measurement + Analysis view.
+    // Step 5.
     const hasReferencePTot =
       measurementLog.some(
         (entry) =>
@@ -1284,11 +1338,11 @@ export default function App() {
       completedSteps[4] =
         true;
 
-      changed = true;
+      changed =
+        true;
     }
 
-    // Step 6: keep the reference R/C values and reach IC ≈ 5 × IR.
-    // Once completed, the challenge remains latched.
+    // Step 6.
     if (
       completedSteps[4] &&
       fiveXChallengeMet &&
@@ -1297,10 +1351,11 @@ export default function App() {
       completedSteps[5] =
         true;
 
-      changed = true;
+      changed =
+        true;
     }
 
-    // Step 7 requires both the safety trip and successful recovery.
+    // Step 7.
     if (
       completedSteps[5] &&
       progress.safetyTripObserved &&
@@ -1310,10 +1365,24 @@ export default function App() {
       completedSteps[6] =
         true;
 
-      changed = true;
+      changed =
+        true;
     }
 
-    // Find the highest completed step.
+    // Step 8.
+    if (
+      measurementLog.length >
+      0 &&
+      progress.reportGenerated &&
+      !completedSteps[7]
+    ) {
+      completedSteps[7] =
+        true;
+
+      changed =
+        true;
+    }
+
     let highestCompleted =
       -1;
 
@@ -1331,10 +1400,9 @@ export default function App() {
       }
     );
 
-    // Progress is monotonic:
-    // once a step is completed, it cannot go backwards.
     const nextStep =
-      highestCompleted >= 7
+      highestCompleted >=
+        7
         ? 8
         : highestCompleted +
         2;
@@ -1355,8 +1423,10 @@ export default function App() {
     ) {
       labStore.setProgress({
         completedSteps,
+
         currentStep:
           safeStep,
+
         ...(completedSteps[5]
           ? {
             fiveXChallengeCompleted:
@@ -1375,9 +1445,9 @@ export default function App() {
   ]);
 
   // MY UNDERSTANDING:
-  // Step 4 requires the actual reference R and C measurements.
-  // Step 5 requires the reference total current measurement and
-  // opening Analysis view.
+  // The progress system only moves forward. Each step has a concrete
+  // condition, and completed steps stay completed even when controls
+  // later change.
 
   // --------------------------------------------------------
   // COMPONENT DROP HANDLER
@@ -1395,14 +1465,15 @@ export default function App() {
         component ===
         "resistor"
       ) {
-        // R and C must occupy different A/B columns.
         const columnOccupied =
-          column !== null &&
+          column !==
+          null &&
           column ===
           capacitorSnappedColumn;
 
         if (
-          column !== null &&
+          column !==
+          null &&
           sockets &&
           !columnOccupied
         ) {
@@ -1416,8 +1487,7 @@ export default function App() {
           }
 
           const snappedPosition = [
-            pair.hot
-              .position[0],
+            pair.hot.position[0],
             DRAG_HEIGHT,
             0,
           ];
@@ -1437,7 +1507,6 @@ export default function App() {
             ],
           });
         } else {
-          // Invalid drop returns the resistor to its tray.
           setResistorPosition(
             TRAY_POSITION
           );
@@ -1464,14 +1533,15 @@ export default function App() {
         component ===
         "capacitor"
       ) {
-        // R and C must occupy different A/B columns.
         const columnOccupied =
-          column !== null &&
+          column !==
+          null &&
           column ===
           resistorSnappedColumn;
 
         if (
-          column !== null &&
+          column !==
+          null &&
           sockets &&
           !columnOccupied
         ) {
@@ -1485,8 +1555,7 @@ export default function App() {
           }
 
           const snappedPosition = [
-            pair.hot
-              .position[0],
+            pair.hot.position[0],
             DRAG_HEIGHT,
             0,
           ];
@@ -1506,7 +1575,6 @@ export default function App() {
             ],
           });
         } else {
-          // Invalid drop returns the capacitor to its tray.
           setCapacitorPosition(
             CAPACITOR_TRAY_POSITION
           );
@@ -1528,14 +1596,15 @@ export default function App() {
           });
         }
       }
-
-      // MY UNDERSTANDING:
-      // App translates a successful drop into actual circuit state.
-      // The generic drag controller itself does not decide the circuit.
     };
 
+  // MY UNDERSTANDING:
+  // App translates the generic drag result into actual circuit wiring.
+  // The drag controller decides how an object moves, while App decides
+  // whether the dropped component becomes part of the experiment.
+
   // --------------------------------------------------------
-  // GENERIC DRAG CONTROLLER
+  // DRAG CONTROLLER
   // --------------------------------------------------------
 
   const {
@@ -1543,16 +1612,16 @@ export default function App() {
     startDrag,
     moveDrag,
     endDrag,
-  } = useDragController({
-    dragHeight:
-      DRAG_HEIGHT,
-    snapRadius:
-      SNAP_RADIUS,
-    onDrop:
-      handleComponentDrop,
-  });
+  } =
+    useDragController({
+      dragHeight:
+        DRAG_HEIGHT,
+      snapRadius:
+        SNAP_RADIUS,
+      onDrop:
+        handleComponentDrop,
+    });
 
-  // Start dragging resistor.
   const handleResistorPointerDown =
     (event) => {
       startDrag(
@@ -1562,7 +1631,6 @@ export default function App() {
       );
     };
 
-  // Start dragging capacitor.
   const handleCapacitorPointerDown =
     (event) => {
       startDrag(
@@ -1584,8 +1652,8 @@ export default function App() {
     );
 
     // MY UNDERSTANDING:
-    // The clamp only chooses which current to observe.
-    // The physics engine calculates the current itself.
+    // The clamp only selects which existing current is observed.
+    // It does not modify the circuit physics.
   }
 
   // --------------------------------------------------------
@@ -1629,25 +1697,31 @@ export default function App() {
   }
 
   function toggleGenerator() {
-    // Turning power off is always allowed.
-    if (generatorOn) {
+    if (
+      generatorOn
+    ) {
       labStore.setControls({
-        generatorOn: false,
+        generatorOn:
+          false,
       });
 
       return;
     }
 
-    // After a trip, the learner must lower the operating point and
-    // wait for stored stress to decay before restarting the source.
-    if (safetyTripped) {
-      if (!safetyRecoveryReady) {
+    if (
+      safetyTripped
+    ) {
+      if (
+        !safetyRecoveryReady
+      ) {
         return;
       }
 
       labStore.setSafety({
-        capStress: 0,
-        tripped: false,
+        capStress:
+          0,
+        tripped:
+          false,
       });
 
       labStore.setProgress({
@@ -1657,7 +1731,8 @@ export default function App() {
     }
 
     labStore.setControls({
-      generatorOn: true,
+      generatorOn:
+        true,
     });
   }
 
@@ -1676,16 +1751,119 @@ export default function App() {
     );
   }
 
-  // Load the exact standard reference setup.
   function loadReferenceValues() {
     labStore.setControls({
       ...REFERENCE_SETUP,
     });
   }
 
+  // --------------------------------------------------------
+  // REPORT ACTIONS
+  // --------------------------------------------------------
+
+  function generateLabReport() {
+    if (
+      !reportReady
+    ) {
+      return;
+    }
+
+    const report =
+      buildLabReport({
+        generatedAt:
+          new Date().toLocaleString(),
+
+        // Official reference configuration.
+        referenceSetup:
+          REFERENCE_SETUP,
+
+        // Expected electrical values for the reference configuration.
+        referenceSnapshot:
+          REFERENCE_SNAPSHOT,
+
+        // Actual controls at the moment the report is generated.
+        setup: {
+          voltageVrms,
+          frequencyHz,
+          resistanceOhm,
+          capacitanceUf,
+        },
+
+        // Same electrical snapshot already used by the simulation.
+        snapshot:
+          electricalSnapshot,
+
+        measurementLog,
+
+        safety: {
+          capStress,
+          tripped:
+            safetyTripped,
+        },
+
+        progress,
+
+        reflection,
+      });
+
+    setGeneratedReport(
+      report
+    );
+
+    setReportVisible(
+      true
+    );
+
+    labStore.setProgress({
+      reportGenerated:
+        true,
+    });
+  }
+
   // MY UNDERSTANDING:
-  // Loading the reference simply writes the four official values
-  // into the same controls used by the rest of the simulation.
+  // The report captures both the official reference setup and
+  // the final observed setup. Both are generated from the same
+  // experiment state and physics snapshot used by the live lab.
+
+  async function copyLabReport() {
+    if (
+      !generatedReport
+    ) {
+      return;
+    }
+
+    const reportText =
+      formatLabReportText(
+        generatedReport
+      );
+
+    try {
+      await navigator.clipboard.writeText(
+        reportText
+      );
+    } catch {
+      // Clipboard may be unavailable in some browser contexts.
+      // The report is still visible and can be copied manually.
+    }
+  }
+
+  function updateReflection(
+    field,
+    value
+  ) {
+    setReflection(
+      (current) => ({
+        ...current,
+        [field]:
+          value,
+      })
+    );
+  }
+
+  // MY UNDERSTANDING:
+  // The report is built from the same measurements and electrical snapshot
+  // already used by the simulation. The reflection text is learner input,
+  // while report formatting stays separate from the physics engine.
 
   // --------------------------------------------------------
   // RESET
@@ -1708,7 +1886,9 @@ export default function App() {
       null
     );
 
-    setErrors(0);
+    setErrors(
+      0
+    );
 
     labStore.reset();
 
@@ -1718,6 +1898,20 @@ export default function App() {
 
     document.body.style.cursor =
       "default";
+
+    setReportVisible(
+      false
+    );
+
+    setGeneratedReport(
+      null
+    );
+
+    setReflection({
+      observation: "",
+      frequencyExplanation: "",
+      safetyExplanation: "",
+    });
   }
 
   // --------------------------------------------------------
@@ -1727,24 +1921,35 @@ export default function App() {
   return (
     <div
       style={{
-        position: "relative",
-        width: "100vw",
-        height: "100vh",
-        overflow: "hidden",
+        position:
+          "relative",
+
+        width:
+          "100vw",
+
+        height:
+          "100vh",
+
+        overflow:
+          "hidden",
+
         background:
           "#070b12",
+
         color:
           "#e5e7eb",
+
         fontFamily:
           "Inter, system-ui, sans-serif",
       }}
     >
-      {/* 3D scene. */}
+      {/* 3D SCENE */}
       <div
         style={{
           position:
             "absolute",
-          inset: 0,
+          inset:
+            0,
           width:
             "100%",
           height:
@@ -1755,48 +1960,63 @@ export default function App() {
           cameraView={
             cameraView
           }
+
           dragState={
             dragState
           }
+
           resistorPosition={
             resistorPosition
           }
+
           capacitorPosition={
             capacitorPosition
           }
+
           resistorSnappedColumn={
             resistorSnappedColumn
           }
+
           capacitorSnappedColumn={
             capacitorSnappedColumn
           }
+
           clampPoint={
             clampPoint
           }
+
           onResistorPointerDown={
             handleResistorPointerDown
           }
+
           onCapacitorPointerDown={
             handleCapacitorPointerDown
           }
+
           onClampPointChange={
             handleClampPointChange
           }
+
           onPointerMove={
             moveDrag
           }
+
           onPointerUp={
             endDrag
           }
+
           electricalSnapshot={
             electricalSnapshot
           }
+
           simulationActive={
             simulationActive
           }
+
           capStress={
             capStress
           }
+
           safetyTripped={
             safetyTripped
           }
@@ -1804,21 +2024,25 @@ export default function App() {
       </div>
 
       {/* ------------------------------------------------
-                MAIN HUD
-            ------------------------------------------------- */}
+                        MAIN HUD
+                    ------------------------------------------------ */}
 
       <div
         style={{
           position:
             "absolute",
-          top: 18,
-          left: 18,
-          width: 385,
+          top:
+            18,
+          left:
+            18,
+          width:
+            385,
           maxHeight:
             "calc(100vh - 36px)",
           overflowY:
             "auto",
-          padding: 18,
+          padding:
+            18,
           borderRadius:
             16,
           background:
@@ -1827,7 +2051,8 @@ export default function App() {
             "1px solid rgba(148, 163, 184, 0.2)",
           backdropFilter:
             "blur(8px)",
-          zIndex: 10,
+          zIndex:
+            10,
         }}
       >
         <div
@@ -1854,17 +2079,13 @@ export default function App() {
               1.5,
           }}
         >
-          Configure the AC
-          source, then move
-          the current clamp
-          between measurement
+          Configure the AC source,
+          then move the current
+          clamp between measurement
           points.
         </div>
 
-        {/* ------------------------------------------------
-                    ELECTRICAL CONTROLS
-                ------------------------------------------------- */}
-
+        {/* ELECTRICAL CONTROLS */}
         <div
           style={{
             marginTop:
@@ -1890,7 +2111,8 @@ export default function App() {
           style={{
             display:
               "grid",
-            gap: 14,
+            gap:
+              14,
           }}
         >
           <ControlSlider
@@ -1898,9 +2120,15 @@ export default function App() {
             value={
               voltageVrms
             }
-            min={1}
-            max={10}
-            step={0.1}
+            min={
+              1
+            }
+            max={
+              10
+            }
+            step={
+              0.1
+            }
             unit=" Vrms"
             onChange={
               setVoltage
@@ -1912,9 +2140,15 @@ export default function App() {
             value={
               frequencyHz
             }
-            min={1000}
-            max={25000}
-            step={100}
+            min={
+              1000
+            }
+            max={
+              25000
+            }
+            step={
+              100
+            }
             unit=" Hz"
             onChange={
               setFrequency
@@ -1926,9 +2160,15 @@ export default function App() {
             value={
               resistanceOhm
             }
-            min={100}
-            max={5000}
-            step={100}
+            min={
+              100
+            }
+            max={
+              5000
+            }
+            step={
+              100
+            }
             unit=" Ω"
             onChange={
               setResistance
@@ -1939,7 +2179,8 @@ export default function App() {
             style={{
               display:
                 "grid",
-              gap: 6,
+              gap:
+                6,
             }}
           >
             <div
@@ -2016,7 +2257,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Load the reference setup. */}
         <button
           onClick={
             loadReferenceValues
@@ -2050,10 +2290,7 @@ export default function App() {
           1 kΩ · 0.1 µF
         </button>
 
-        {/* ------------------------------------------------
-                    GENERATOR / SCOPE
-                ------------------------------------------------- */}
-
+        {/* GENERATOR */}
         <button
           onClick={
             toggleGenerator
@@ -2065,7 +2302,8 @@ export default function App() {
               10,
             padding:
               "10px 12px",
-            border: 0,
+            border:
+              0,
             borderRadius:
               9,
             background:
@@ -2082,15 +2320,20 @@ export default function App() {
               "pointer",
           }}
         >
-          {safetyTripped
-            ? safetyRecoveryReady
-              ? "Restart after safety trip"
-              : "Safety trip — reduce stress"
-            : "AC Generator:"}
+          {
+            safetyTripped
+              ? safetyRecoveryReady
+                ? "Restart after safety trip"
+                : "Safety trip — reduce stress"
+              : "AC Generator:"
+          }
+
           {!safetyTripped &&
-            (generatorOn
-              ? " ON"
-              : " OFF")}
+            (
+              generatorOn
+                ? " ON"
+                : " OFF"
+            )}
         </button>
 
         <button
@@ -2104,7 +2347,8 @@ export default function App() {
               10,
             padding:
               "10px 12px",
-            border: 0,
+            border:
+              0,
             borderRadius:
               9,
             background:
@@ -2120,20 +2364,22 @@ export default function App() {
           }}
         >
           Oscilloscope:
-          {scopeOn
-            ? " ON"
-            : " OFF"}
+          {
+            scopeOn
+              ? " ON"
+              : " OFF"
+          }
         </button>
 
-        {/* ------------------------------------------------
-                    CAPACITOR SAFETY
-                ------------------------------------------------- */}
-
+        {/* CAPACITOR SAFETY */}
         <div
           style={{
-            marginTop: 12,
-            padding: 10,
-            borderRadius: 10,
+            marginTop:
+              12,
+            padding:
+              10,
+            borderRadius:
+              10,
             background:
               safetyTripped
                 ? "rgba(127, 29, 29, 0.18)"
@@ -2146,195 +2392,6 @@ export default function App() {
                 : safetyWarning
                   ? "1px solid rgba(245, 158, 11, 0.55)"
                   : "1px solid rgba(71, 85, 105, 0.45)",
-            fontSize: 12,
-            lineHeight: 1.6,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent:
-                "space-between",
-              alignItems: "center",
-              marginBottom: 6,
-            }}
-          >
-            <strong>
-              CAPACITOR SAFETY
-            </strong>
-
-            <strong
-              style={{
-                color:
-                  safetyTripped
-                    ? "#f87171"
-                    : safetyWarning
-                      ? "#fbbf24"
-                      : "#22c55e",
-              }}
-            >
-              {safetyTripped
-                ? safetyRecoveryReady
-                  ? "READY TO RESTART"
-                  : "TRIPPED"
-                : safetyWarning
-                  ? "WARNING"
-                  : "NORMAL"}
-            </strong>
-          </div>
-
-          <div
-            style={{
-              color: "#94a3b8",
-              marginBottom: 6,
-            }}
-          >
-            Rating:{" "}
-            {CAPACITOR_RATED_VOLTAGE_V} V · Current limit:{" "}
-            {(
-              CAPACITOR_CURRENT_LIMIT_A *
-              1000
-            ).toFixed(0)} mA
-          </div>
-
-          <div>
-            <strong>
-              Stress:
-            </strong>{" "}
-            {(
-              capStress *
-              100
-            ).toFixed(0)}%
-          </div>
-
-          <div>
-            <strong>
-              Load:
-            </strong>{" "}
-            {safetyOverload.toFixed(2)}× limit
-          </div>
-
-          <div
-            style={{
-              height: 7,
-              marginTop: 7,
-              borderRadius: 999,
-              background: "#1e293b",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                width: `${Math.min(
-                  100,
-                  Math.max(
-                    0,
-                    capStress * 100
-                  )
-                )
-                  }%`,
-                height: "100%",
-                background:
-                  safetyTripped
-                    ? "#ef4444"
-                    : safetyWarning
-                      ? "#f59e0b"
-                      : "#22c55e",
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              marginTop: 7,
-              color:
-                safetyTripped
-                  ? "#fca5a5"
-                  : safetyWarning
-                    ? "#fcd34d"
-                    : "#94a3b8",
-            }}
-          >
-            {safetyTripped
-              ? safetyRecoveryReady
-                ? "Stress is low enough. Restart the generator to complete recovery."
-                : "Reduce frequency or voltage, then wait for the stored stress to fall before restarting."
-              : safetyWarning
-                ? "Capacitor stress is elevated. Reduce the operating point before the trip threshold is reached."
-                : "Normal operating range."}
-          </div>
-        </div>
-
-        {/* MY UNDERSTANDING:
-            Safety is time-dependent, so the runtime advances capStress
-            while the generator powers a complete circuit. The warning
-            starts at 80%, an overload can reach the trip threshold, and
-            the trip cuts generator power. Recovery uses hysteresis:
-            lower the operating point, let stored stress decay, then
-            restart the generator.
-        */}
-
-        {/* ------------------------------------------------
-                    CLAMP STATUS
-                ------------------------------------------------- */}
-
-        <div
-          style={{
-            marginTop:
-              12,
-            padding:
-              10,
-            borderRadius:
-              10,
-            background:
-              "rgba(15, 23, 42, 0.8)",
-            border:
-              "1px solid rgba(71, 85, 105, 0.45)",
-            fontSize:
-              12,
-            color:
-              "#cbd5e1",
-            lineHeight:
-              1.6,
-          }}
-        >
-          <div>
-            Clamp point:
-            {" "}
-            <strong>
-              {clampPoint ??
-                "TRAY"}
-            </strong>
-          </div>
-
-          <div
-            style={{
-              color:
-                "#94a3b8",
-            }}
-          >
-            Drag the clamp
-            onto P_R, P_C,
-            or P_TOT.
-          </div>
-        </div>
-
-        {/* ------------------------------------------------
-                    LIVE READINGS
-                ------------------------------------------------- */}
-
-        <div
-          style={{
-            marginTop:
-              12,
-            padding:
-              10,
-            borderRadius:
-              10,
-            background:
-              "rgba(15, 23, 42, 0.8)",
-            border:
-              "1px solid rgba(71, 85, 105, 0.45)",
             fontSize:
               12,
             lineHeight:
@@ -2354,95 +2411,257 @@ export default function App() {
             }}
           >
             <strong>
-              LIVE READINGS
+              CAPACITOR SAFETY
             </strong>
 
-            <span
+            <strong
               style={{
-                fontSize:
-                  11,
                 color:
-                  "#94a3b8",
+                  safetyTripped
+                    ? "#f87171"
+                    : safetyWarning
+                      ? "#fbbf24"
+                      : "#22c55e",
               }}
             >
-              Current setup
-            </span>
+              {
+                safetyTripped
+                  ? safetyRecoveryReady
+                    ? "READY TO RESTART"
+                    : "TRIPPED"
+                  : safetyWarning
+                    ? "WARNING"
+                    : "NORMAL"
+              }
+            </strong>
+          </div>
+
+          <div
+            style={{
+              color:
+                "#94a3b8",
+              marginBottom:
+                6,
+            }}
+          >
+            Rating:{" "}
+            {
+              CAPACITOR_RATED_VOLTAGE_V
+            } V · Current limit:{" "}
+            {
+              (
+                CAPACITOR_CURRENT_LIMIT_A *
+                1000
+              ).toFixed(0)
+            } mA
           </div>
 
           <div>
             <strong>
-              Xc:
+              Stress:
             </strong>{" "}
-            {Number.isFinite(
-              electricalSnapshot.Xc
-            )
-              ? `${electricalSnapshot.Xc.toFixed(
+            {
+              (
+                capStress *
+                100
+              ).toFixed(0)
+            }%
+          </div>
+
+          <div>
+            <strong>
+              Load:
+            </strong>{" "}
+            {
+              safetyOverload.toFixed(
+                2
+              )
+            }× limit
+          </div>
+
+          <div
+            style={{
+              height:
+                7,
+              marginTop:
+                7,
+              borderRadius:
+                999,
+              background:
+                "#1e293b",
+              overflow:
+                "hidden",
+            }}
+          >
+            <div
+              style={{
+                width:
+                  `${Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      capStress *
+                      100
+                    )
+                  )}%`,
+                height:
+                  "100%",
+                background:
+                  safetyTripped
+                    ? "#ef4444"
+                    : safetyWarning
+                      ? "#f59e0b"
+                      : "#22c55e",
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              marginTop:
+                7,
+              color:
+                safetyTripped
+                  ? "#fca5a5"
+                  : safetyWarning
+                    ? "#fcd34d"
+                    : "#94a3b8",
+            }}
+          >
+            {
+              safetyTripped
+                ? safetyRecoveryReady
+                  ? "Stress is low enough. Restart the generator to complete recovery."
+                  : "Reduce frequency or voltage, then wait for the stored stress to fall before restarting."
+                : safetyWarning
+                  ? "Capacitor stress is elevated. Reduce the operating point before the trip threshold is reached."
+                  : "Normal operating range."
+            }
+          </div>
+        </div>
+
+        {/* CLAMP */}
+        <div
+          style={{
+            marginTop:
+              12,
+            padding:
+              10,
+            borderRadius:
+              10,
+            background:
+              "rgba(15, 23, 42, 0.8)",
+            border:
+              "1px solid rgba(71, 85, 105, 0.45)",
+            fontSize:
+              12,
+            lineHeight:
+              1.6,
+          }}
+        >
+          <div>
+            Clamp point:{" "}
+            <strong>
+              {
+                clampPoint ??
+                "TRAY"
+              }
+            </strong>
+          </div>
+
+          <div
+            style={{
+              color:
+                "#94a3b8",
+            }}
+          >
+            Drag the clamp onto
+            P_R, P_C, or P_TOT.
+          </div>
+        </div>
+
+        {/* LIVE READINGS */}
+        <div
+          style={{
+            marginTop:
+              12,
+            padding:
+              10,
+            borderRadius:
+              10,
+            background:
+              "rgba(15, 23, 42, 0.8)",
+            border:
+              "1px solid rgba(71, 85, 105, 0.45)",
+            fontSize:
+              12,
+            lineHeight:
+              1.6,
+          }}
+        >
+          <strong>
+            LIVE READINGS
+          </strong>
+
+          <div>
+            Xc:{" "}
+            {
+              Number.isFinite(
+                electricalSnapshot.Xc
+              )
+                ? `${electricalSnapshot.Xc.toFixed(1)} Ω`
+                : "∞"
+            }
+          </div>
+
+          <div>
+            IR:{" "}
+            {
+              (
+                electricalSnapshot.IR *
+                1000
+              ).toFixed(2)
+            } mA
+          </div>
+
+          <div>
+            IC:{" "}
+            {
+              (
+                electricalSnapshot.IC *
+                1000
+              ).toFixed(2)
+            } mA
+          </div>
+
+          <div>
+            IT:{" "}
+            {
+              (
+                electricalSnapshot.IT *
+                1000
+              ).toFixed(2)
+            } mA
+          </div>
+
+          <div>
+            Phase:{" "}
+            {
+              electricalSnapshot.phiDeg.toFixed(
                 1
-              )} Ω`
-              : "∞"}
+              )
+            }° lead
           </div>
 
           <div>
-            <strong>
-              IR:
-            </strong>{" "}
-            {(
-              electricalSnapshot.IR *
-              1000
-            ).toFixed(
-              2
-            )}{" "}
-            mA
-          </div>
-
-          <div>
-            <strong>
-              IC:
-            </strong>{" "}
-            {(
-              electricalSnapshot.IC *
-              1000
-            ).toFixed(
-              2
-            )}{" "}
-            mA
-          </div>
-
-          <div>
-            <strong>
-              IT:
-            </strong>{" "}
-            {(
-              electricalSnapshot.IT *
-              1000
-            ).toFixed(
-              2
-            )}{" "}
-            mA
-          </div>
-
-          <div>
-            <strong>
-              Phase:
-            </strong>{" "}
-            {electricalSnapshot.phiDeg.toFixed(
-              1
-            )}°
-            {" "}
-            lead
-          </div>
-
-          <div>
-            <strong>
-              Z:
-            </strong>{" "}
-            {Number.isFinite(
-              electricalSnapshot.Z
-            )
-              ? `${electricalSnapshot.Z.toFixed(
-                1
-              )} Ω`
-              : "∞"}
+            Z:{" "}
+            {
+              Number.isFinite(
+                electricalSnapshot.Z
+              )
+                ? `${electricalSnapshot.Z.toFixed(1)} Ω`
+                : "∞"
+            }
           </div>
 
           <div
@@ -2451,23 +2670,17 @@ export default function App() {
                 5,
             }}
           >
-            <strong>
-              Clamp reading:
-            </strong>{" "}
-            {(
-              measuredCurrentRmsA *
-              1000
-            ).toFixed(
-              2
-            )}{" "}
-            mA RMS
+            Clamp reading:{" "}
+            {
+              (
+                measuredCurrentRmsA *
+                1000
+              ).toFixed(2)
+            } mA RMS
           </div>
         </div>
 
-        {/* ------------------------------------------------
-                    REFERENCE / THEORETICAL READINGS
-                ------------------------------------------------- */}
-
+        {/* REFERENCE */}
         <div
           style={{
             marginTop:
@@ -2490,45 +2703,16 @@ export default function App() {
               1.6,
           }}
         >
-          <div
-            style={{
-              display:
-                "flex",
-              justifyContent:
-                "space-between",
-              alignItems:
-                "center",
-              marginBottom:
-                6,
-            }}
-          >
-            <strong>
-              REFERENCE /
-              THEORETICAL
-            </strong>
-
-            {isReferenceSetup && (
-              <span
-                style={{
-                  color:
-                    "#22c55e",
-                  fontSize:
-                    11,
-                  fontWeight:
-                    800,
-                }}
-              >
-                ACTIVE
-              </span>
-            )}
-          </div>
+          <strong>
+            REFERENCE / THEORETICAL
+          </strong>
 
           <div
             style={{
               color:
                 "#94a3b8",
-              marginBottom:
-                6,
+              marginTop:
+                5,
             }}
           >
             5 Vrms · 1 kHz ·
@@ -2536,80 +2720,64 @@ export default function App() {
           </div>
 
           <div>
-            <strong>
-              Xc:
-            </strong>{" "}
-            {REFERENCE_SNAPSHOT.Xc.toFixed(
-              1
-            )}{" "}
-            Ω
+            Xc:{" "}
+            {
+              REFERENCE_SNAPSHOT.Xc.toFixed(
+                1
+              )
+            } Ω
           </div>
 
           <div>
-            <strong>
-              IR:
-            </strong>{" "}
-            {(
-              REFERENCE_SNAPSHOT.IR *
-              1000
-            ).toFixed(
-              2
-            )}{" "}
-            mA
+            IR:{" "}
+            {
+              (
+                REFERENCE_SNAPSHOT.IR *
+                1000
+              ).toFixed(2)
+            } mA
           </div>
 
           <div>
-            <strong>
-              IC:
-            </strong>{" "}
-            {(
-              REFERENCE_SNAPSHOT.IC *
-              1000
-            ).toFixed(
-              2
-            )}{" "}
-            mA
+            IC:{" "}
+            {
+              (
+                REFERENCE_SNAPSHOT.IC *
+                1000
+              ).toFixed(2)
+            } mA
           </div>
 
           <div>
-            <strong>
-              IT:
-            </strong>{" "}
-            {(
-              REFERENCE_SNAPSHOT.IT *
-              1000
-            ).toFixed(
-              2
-            )}{" "}
-            mA
+            IT:{" "}
+            {
+              (
+                REFERENCE_SNAPSHOT.IT *
+                1000
+              ).toFixed(2)
+            } mA
           </div>
 
           <div>
-            <strong>
-              Phase:
-            </strong>{" "}
-            {REFERENCE_SNAPSHOT.phiDeg.toFixed(
-              1
-            )}°
-            {" "}
-            lead
+            Phase:{" "}
+            {
+              REFERENCE_SNAPSHOT.phiDeg.toFixed(
+                1
+              )
+            }° lead
           </div>
 
           <div>
-            <strong>
-              Z:
-            </strong>{" "}
-            {REFERENCE_SNAPSHOT.Z.toFixed(
-              1
-            )}{" "}
-            Ω
+            Z:{" "}
+            {
+              REFERENCE_SNAPSHOT.Z.toFixed(
+                1
+              )
+            } Ω
           </div>
         </div>
 
-        {/* ------------------------------------------------
-                    CAMERA VIEWS
-                ------------------------------------------------- */}
-
+        {/* CAMERA VIEWS */}
         <div
           style={{
             marginTop:
@@ -2635,236 +2803,66 @@ export default function App() {
           style={{
             display:
               "flex",
-            gap: 6,
+            gap:
+              6,
             flexWrap:
               "wrap",
           }}
         >
-          <button
-            onClick={() =>
-              setCameraView(
-                "bench"
-              )
-            }
-          >
-            1 · Bench
-          </button>
-
-          <button
-            onClick={() =>
-              setCameraView(
-                "board"
-              )
-            }
-          >
-            2 · Board
-          </button>
-
-          <button
-            onClick={() =>
-              setCameraView(
-                "analysis"
-              )
-            }
-          >
-            3 · Analysis
-          </button>
+          {[
+            [
+              "1 · Bench",
+              "bench",
+            ],
+            [
+              "2 · Board",
+              "board",
+            ],
+            [
+              "3 · Analysis",
+              "analysis",
+            ],
+          ].map(
+            ([
+              label,
+              view,
+            ]) => (
+              <button
+                key={
+                  view
+                }
+                onClick={() =>
+                  setCameraView(
+                    view
+                  )
+                }
+                style={{
+                  padding:
+                    "8px 10px",
+                  borderRadius:
+                    8,
+                  border:
+                    "1px solid #334155",
+                  background:
+                    cameraView ===
+                      view
+                      ? "#1e293b"
+                      : "#111827",
+                  color:
+                    "#e5e7eb",
+                  cursor:
+                    "pointer",
+                }}
+              >
+                {
+                  label
+                }
+              </button>
+            )
+          )}
         </div>
 
-        {/* ------------------------------------------------
-                    EXPERIMENT STATE
-                ------------------------------------------------- */}
-
-        <div
-          style={{
-            marginTop:
-              16,
-            marginBottom:
-              6,
-            fontSize:
-              12,
-            color:
-              "#94a3b8",
-            fontWeight:
-              700,
-            textTransform:
-              "uppercase",
-            letterSpacing:
-              "0.08em",
-          }}
-        >
-          Experiment state
-        </div>
-
-        <div
-          style={{
-            display:
-              "grid",
-            gap: 7,
-            fontSize:
-              13,
-          }}
-        >
-          <div>
-            <strong>
-              Camera:
-            </strong>{" "}
-            {
-              cameraView
-            }
-          </div>
-
-          <div>
-            <strong>
-              Generator:
-            </strong>{" "}
-            {generatorOn
-              ? "ON"
-              : "OFF"}
-          </div>
-
-          <div>
-            <strong>
-              Clamp:
-            </strong>{" "}
-            {clampPoint ??
-              "TRAY"}
-          </div>
-
-          <div>
-            <strong>
-              Dragging:
-            </strong>{" "}
-            {
-              dragState.component ??
-              "none"
-            }
-          </div>
-
-          <div>
-            <strong>
-              Snap candidate:
-            </strong>{" "}
-            {dragState.candidateColumn ===
-              null
-              ? "none"
-              : `column ${dragState.candidateColumn}`}
-          </div>
-
-          <div>
-            <strong>
-              Resistor connected:
-            </strong>{" "}
-            {String(
-              resistorConnected
-            )}
-          </div>
-
-          <div>
-            <strong>
-              Resistor snapped:
-            </strong>{" "}
-            {resistorSnappedColumn ===
-              null
-              ? "no"
-              : `column ${resistorSnappedColumn}`}
-          </div>
-
-          <div>
-            <strong>
-              Capacitor snapped:
-            </strong>{" "}
-            {capacitorSnappedColumn ===
-              null
-              ? "no"
-              : `column ${capacitorSnappedColumn}`}
-          </div>
-
-          <div>
-            <strong>
-              Circuit assembled:
-            </strong>{" "}
-            <span
-              style={{
-                color:
-                  circuitAssembled
-                    ? "#22c55e"
-                    : "#f97316",
-              }}
-            >
-              {String(
-                circuitAssembled
-              )}
-            </span>
-          </div>
-
-          <div>
-            <strong>
-              Errors:
-            </strong>{" "}
-            {errors}
-          </div>
-
-          <div>
-            <strong>
-              Frequency:
-            </strong>{" "}
-            {formatFrequency(
-              frequencyHz
-            )}
-          </div>
-
-          <div>
-            <strong>
-              Scope:
-            </strong>{" "}
-            {scopeOn
-              ? "ON"
-              : "OFF"}
-          </div>
-
-          <div>
-            <strong>
-              IC / IR:
-            </strong>{" "}
-            {currentRatio.toFixed(2)}×
-          </div>
-
-          <div>
-            <strong>
-              Simulation:
-            </strong>{" "}
-            {simulationActive
-              ? "ACTIVE"
-              : "IDLE"}
-          </div>
-
-          <div>
-            <strong>
-              Safety:
-            </strong>{" "}
-            {safetyTripped
-              ? "TRIPPED"
-              : safetyWarning
-                ? "WARNING"
-                : "NORMAL"}
-          </div>
-
-          <div>
-            <strong>
-              Cap stress:
-            </strong>{" "}
-            {(
-              capStress *
-              100
-            ).toFixed(0)}%
-          </div>
-        </div>
-
-        {/* ------------------------------------------------
-                    GUIDED PROGRESS
-                ------------------------------------------------- */}
-
+        {/* GUIDED PROGRESS */}
         <div
           style={{
             marginTop:
@@ -2889,8 +2887,6 @@ export default function App() {
                 "flex",
               justifyContent:
                 "space-between",
-              marginBottom:
-                6,
             }}
           >
             <strong>
@@ -2908,9 +2904,12 @@ export default function App() {
 
           <div
             style={{
+              marginTop:
+                6,
               display:
                 "grid",
-              gap: 3,
+              gap:
+                3,
             }}
           >
             {[
@@ -2945,16 +2944,18 @@ export default function App() {
                           : "#64748b",
                   }}
                 >
-                  {progress
-                    .completedSteps[
-                    index
-                  ]
-                    ? "✓"
-                    : index +
-                      1 ===
-                      progress.currentStep
-                      ? "→"
-                      : "·"}{" "}
+                  {
+                    progress
+                      .completedSteps[
+                      index
+                    ]
+                      ? "✓"
+                      : index +
+                        1 ===
+                        progress.currentStep
+                        ? "→"
+                        : "·"
+                  }{" "}
                   {index +
                     1}.{" "}
                   {
@@ -2980,44 +2981,206 @@ export default function App() {
           </div>
         </div>
 
-        {/* ------------------------------------------------
-                    CLAMP EXPLANATION
-                ------------------------------------------------- */}
+        {/* STEP 8 REPORT FORM */}
+        {
+          progress.currentStep >=
+          8 && (
+            <div
+              style={{
+                marginTop:
+                  16,
+                padding:
+                  10,
+                borderRadius:
+                  10,
+                background:
+                  "rgba(34, 197, 94, 0.08)",
+                border:
+                  "1px solid rgba(34, 197, 94, 0.3)",
+              }}
+            >
+              <strong>
+                REFLECTION / REPORT
+              </strong>
 
-        <div
-          style={{
-            marginTop:
-              16,
-            padding:
-              10,
-            borderRadius:
-              10,
-            background:
-              "rgba(124, 58, 237, 0.10)",
-            border:
-              "1px solid rgba(139, 92, 246, 0.35)",
-            fontSize:
-              12,
-            lineHeight:
-              1.55,
-            color:
-              "#d8b4fe",
-          }}
-        >
-          <strong>
-            Current clamp:
-          </strong>{" "}
-          Move the orange
-          clamp between the
-          glowing measurement
-          rings. P_R measures
-          resistor current,
-          P_C measures capacitor
-          current, and P_TOT
-          measures total current.
-        </div>
+              <div
+                style={{
+                  marginTop:
+                    6,
+                  color:
+                    "#94a3b8",
+                  fontSize:
+                    12,
+                  lineHeight:
+                    1.5,
+                }}
+              >
+                Add your observations,
+                then generate the
+                final laboratory
+                report.
+              </div>
 
-        {/* Reset laboratory. */}
+              <textarea
+                value={
+                  reflection
+                    .observation
+                }
+                onChange={(
+                  event
+                ) =>
+                  updateReflection(
+                    "observation",
+                    event.target.value
+                  )
+                }
+                placeholder="What changed as frequency increased?"
+                rows={
+                  3
+                }
+                style={{
+                  width:
+                    "100%",
+                  marginTop:
+                    8,
+                  boxSizing:
+                    "border-box",
+                  padding:
+                    8,
+                  borderRadius:
+                    8,
+                  border:
+                    "1px solid #334155",
+                  background:
+                    "#111827",
+                  color:
+                    "#e5e7eb",
+                  resize:
+                    "vertical",
+                }}
+              />
+
+              <textarea
+                value={
+                  reflection
+                    .frequencyExplanation
+                }
+                onChange={(
+                  event
+                ) =>
+                  updateReflection(
+                    "frequencyExplanation",
+                    event.target.value
+                  )
+                }
+                placeholder="Why does IC increase with frequency?"
+                rows={
+                  3
+                }
+                style={{
+                  width:
+                    "100%",
+                  marginTop:
+                    8,
+                  boxSizing:
+                    "border-box",
+                  padding:
+                    8,
+                  borderRadius:
+                    8,
+                  border:
+                    "1px solid #334155",
+                  background:
+                    "#111827",
+                  color:
+                    "#e5e7eb",
+                  resize:
+                    "vertical",
+                }}
+              />
+
+              <textarea
+                value={
+                  reflection
+                    .safetyExplanation
+                }
+                onChange={(
+                  event
+                ) =>
+                  updateReflection(
+                    "safetyExplanation",
+                    event.target.value
+                  )
+                }
+                placeholder="What caused the safety trip and how did recovery work?"
+                rows={
+                  3
+                }
+                style={{
+                  width:
+                    "100%",
+                  marginTop:
+                    8,
+                  boxSizing:
+                    "border-box",
+                  padding:
+                    8,
+                  borderRadius:
+                    8,
+                  border:
+                    "1px solid #334155",
+                  background:
+                    "#111827",
+                  color:
+                    "#e5e7eb",
+                  resize:
+                    "vertical",
+                }}
+              />
+
+              <button
+                onClick={
+                  generateLabReport
+                }
+                disabled={
+                  !reportReady
+                }
+                style={{
+                  width:
+                    "100%",
+                  marginTop:
+                    10,
+                  padding:
+                    "10px 12px",
+                  border:
+                    0,
+                  borderRadius:
+                    9,
+                  background:
+                    reportReady
+                      ? "#16a34a"
+                      : "#374151",
+                  color:
+                    "#fff",
+                  fontWeight:
+                    800,
+                  cursor:
+                    reportReady
+                      ? "pointer"
+                      : "not-allowed",
+                }}
+              >
+                {
+                  progress.reportGenerated
+                    ? "Regenerate Lab Report"
+                    : "Generate Final Lab Report"
+                }
+              </button>
+            </div>
+          )
+        }
+
+        {/* RESET */}
         <button
           onClick={
             resetLab
@@ -3027,7 +3190,8 @@ export default function App() {
               18,
             width:
               "100%",
-            border: 0,
+            border:
+              0,
             borderRadius:
               10,
             padding:
@@ -3046,160 +3210,935 @@ export default function App() {
         </button>
       </div>
 
-      {/* Step 6 phasor analysis HUD. */}
-      {cameraView === "analysis" && (
-        <div
-          style={{
-            position: "absolute",
-            top: 18,
-            right: 18,
-            width: 300,
-            padding: 14,
-            borderRadius: 14,
-            background:
-              "rgba(8, 12, 20, 0.93)",
-            border:
-              "1px solid rgba(139, 92, 246, 0.45)",
-            boxShadow:
-              "0 12px 30px rgba(0, 0, 0, 0.25)",
-            zIndex: 10,
-            fontSize: 12,
-            lineHeight: 1.6,
-          }}
-        >
+      {/* PHASOR HUD */}
+      {
+        cameraView ===
+        "analysis" && (
           <div
             style={{
-              display: "flex",
-              justifyContent:
-                "space-between",
-              alignItems: "center",
-              marginBottom: 6,
+              position:
+                "absolute",
+              top:
+                18,
+              right:
+                18,
+              width:
+                300,
+              padding:
+                14,
+              borderRadius:
+                14,
+              background:
+                "rgba(8, 12, 20, 0.93)",
+              border:
+                "1px solid rgba(139, 92, 246, 0.45)",
+              boxShadow:
+                "0 12px 30px rgba(0,0,0,0.25)",
+              zIndex:
+                10,
+              fontSize:
+                12,
+              lineHeight:
+                1.6,
             }}
           >
-            <strong>
-              PHASOR ANALYSIS
-            </strong>
-
-            <span
+            <div
               style={{
-                color:
-                  progress.fiveXChallengeCompleted ||
-                    fiveXChallengeMet
-                    ? "#22c55e"
-                    : "#94a3b8",
-                fontWeight: 800,
+                display:
+                  "flex",
+                justifyContent:
+                  "space-between",
+                alignItems:
+                  "center",
+                marginBottom:
+                  6,
               }}
             >
-              {progress.fiveXChallengeCompleted
-                ? "5× COMPLETE"
-                : fiveXChallengeMet
-                  ? "5× REACHED"
-                  : "STEP 6"}
-            </span>
+              <strong>
+                PHASOR ANALYSIS
+              </strong>
+
+              <strong
+                style={{
+                  color:
+                    progress
+                      .fiveXChallengeCompleted ||
+                      fiveXChallengeMet
+                      ? "#22c55e"
+                      : "#94a3b8",
+                }}
+              >
+                {
+                  progress
+                    .fiveXChallengeCompleted
+                    ? "5× COMPLETE"
+                    : fiveXChallengeMet
+                      ? "5× REACHED"
+                      : "STEP 6"
+                }
+              </strong>
+            </div>
+
+            <div
+              style={{
+                color:
+                  "#94a3b8",
+                marginBottom:
+                  8,
+              }}
+            >
+              Vector lengths use a
+              fixed 80 mA visual
+              reference. Labels
+              show true RMS values.
+            </div>
+
+            <div>
+              <strong>
+                IR:
+              </strong>{" "}
+              {
+                (
+                  electricalSnapshot.IR *
+                  1000
+                ).toFixed(
+                  2
+                )
+              } mA
+            </div>
+
+            <div>
+              <strong>
+                IC:
+              </strong>{" "}
+              {
+                (
+                  electricalSnapshot.IC *
+                  1000
+                ).toFixed(
+                  2
+                )
+              } mA
+            </div>
+
+            <div>
+              <strong>
+                IT:
+              </strong>{" "}
+              {
+                (
+                  electricalSnapshot.IT *
+                  1000
+                ).toFixed(
+                  2
+                )
+              } mA
+            </div>
+
+            <div>
+              <strong>
+                φ:
+              </strong>{" "}
+              {
+                electricalSnapshot.phiDeg.toFixed(
+                  1
+                )
+              }° lead
+            </div>
+
+            <div
+              style={{
+                marginTop:
+                  5,
+              }}
+            >
+              <strong>
+                IC / IR:
+              </strong>{" "}
+              {
+                currentRatio.toFixed(
+                  2
+                )
+              }×
+            </div>
+
+            <div
+              style={{
+                marginTop:
+                  8,
+                color:
+                  "#d8b4fe",
+              }}
+            >
+              {
+                progress
+                  .fiveXChallengeCompleted
+                  ? "Frequency challenge complete. The gate is latched."
+                  : fiveXChallengeMet
+                    ? "Target reached. Step 6 will now latch."
+                    : "Sweep frequency until IC is approximately five times IR."
+              }
+            </div>
           </div>
+        )
+      }
 
-          <div
-            style={{
-              color: "#94a3b8",
-              marginBottom: 8,
-            }}
-          >
-            Vector lengths use a fixed
-            80 mA visual reference.
-            Labels show true RMS values.
-          </div>
+      {/* OSCILLOSCOPE */}
+      {
+        scopeOn && (
+          <Oscilloscope
+            voltageVrms={
+              voltageVrms
+            }
 
-          <div>
-            <strong>IR:</strong>{" "}
-            {(electricalSnapshot.IR * 1000).toFixed(
-              2
-            )} mA
-          </div>
+            frequencyHz={
+              frequencyHz
+            }
 
-          <div>
-            <strong>IC:</strong>{" "}
-            {(electricalSnapshot.IC * 1000).toFixed(
-              2
-            )} mA
-          </div>
+            clampPoint={
+              clampPoint
+            }
 
-          <div>
-            <strong>IT:</strong>{" "}
-            {(electricalSnapshot.IT * 1000).toFixed(
-              2
-            )} mA
-          </div>
+            currentRmsA={
+              measuredCurrentRmsA
+            }
 
-          <div>
-            <strong>φ:</strong>{" "}
-            {electricalSnapshot.phiDeg.toFixed(
-              1
-            )}° lead
-          </div>
+            generatorOn={
+              generatorOn
+            }
 
-          <div style={{ marginTop: 5 }}>
-            <strong>IC / IR:</strong>{" "}
-            {currentRatio.toFixed(2)}×
-          </div>
+            phiRad={
+              electricalSnapshot.phiRad
+            }
 
-          <div
-            style={{
-              marginTop: 8,
-              color: "#d8b4fe",
-            }}
-          >
-            {progress.fiveXChallengeCompleted
-              ? "Frequency challenge complete. The gate is latched."
-              : fiveXChallengeMet
-                ? "Target reached. Step 6 will now latch."
-                : "Sweep frequency until IC is approximately five times IR."}
-          </div>
-        </div>
-      )}
+            ch1VoltsPerDiv={
+              ch1VoltsPerDiv
+            }
 
-      {/* Virtual oscilloscope. */}
-      {scopeOn && (
-        <Oscilloscope
-          voltageVrms={
-            voltageVrms
-          }
-          frequencyHz={
-            frequencyHz
-          }
-          clampPoint={
-            clampPoint
-          }
-          currentRmsA={
-            measuredCurrentRmsA
-          }
-          generatorOn={
-            generatorOn
-          }
-          phiRad={
-            electricalSnapshot.phiRad
-          }
-          ch1VoltsPerDiv={
-            ch1VoltsPerDiv
-          }
-          ch2MilliAmpsPerDiv={
-            ch2MilliAmpsPerDiv
-          }
-          timePerDivMs={
-            timePerDivMs
-          }
-          onControlChange={
-            setScopeControls
-          }
-        />
-      )}
+            ch2MilliAmpsPerDiv={
+              ch2MilliAmpsPerDiv
+            }
 
-      {/* Bottom hint. */}
+            timePerDivMs={
+              timePerDivMs
+            }
+
+            onControlChange={
+              setScopeControls
+            }
+          />
+        )
+      }
+
+      {/* ------------------------------------------------
+                  GENERATED REPORT
+              ------------------------------------------------ */}
+
+      {
+        reportVisible &&
+        generatedReport && (
+          <>
+            <style>
+              {`
+                                @page {
+                                    margin: 12mm;
+                                }
+
+                                @media print {
+                                    html,
+                                    body,
+                                    #root {
+                                        width: auto !important;
+                                        height: auto !important;
+                                        min-height: 0 !important;
+                                        overflow: visible !important;
+                                        background: white !important;
+                                    }
+
+                                    #root > div {
+                                        width: auto !important;
+                                        height: auto !important;
+                                        min-height: 0 !important;
+                                        overflow: visible !important;
+                                    }
+
+                                    body * {
+                                        visibility: hidden !important;
+                                    }
+
+                                    .lab-report-print,
+                                    .lab-report-print * {
+                                        visibility: visible !important;
+                                    }
+
+                                    .lab-report-print {
+                                        position: relative !important;
+                                        inset: auto !important;
+                                        width: 100% !important;
+                                        min-height: 0 !important;
+                                        height: auto !important;
+                                        max-height: none !important;
+                                        margin: 0 !important;
+                                        padding: 8mm !important;
+                                        overflow: visible !important;
+                                        box-sizing: border-box !important;
+                                        border-radius: 0 !important;
+                                        box-shadow: none !important;
+                                        background: white !important;
+                                        color: black !important;
+                                    }
+
+                                    .lab-report-actions {
+                                        display: none !important;
+                                    }
+
+                                    .lab-report-print section {
+                                        break-inside: avoid;
+                                        page-break-inside: avoid;
+                                    }
+
+                                    .lab-report-print h1,
+                                    .lab-report-print h2 {
+                                        color: black !important;
+                                    }
+
+                                    .lab-report-print p,
+                                    .lab-report-print div,
+                                    .lab-report-print td,
+                                    .lab-report-print th {
+                                        color: black !important;
+                                    }
+                                }
+                            `}
+            </style>
+
+            <div
+              className="lab-report-print"
+              style={{
+                position:
+                  "absolute",
+                inset:
+                  24,
+                zIndex:
+                  30,
+                overflowY:
+                  "auto",
+                padding:
+                  24,
+                borderRadius:
+                  16,
+                background:
+                  "#f8fafc",
+                color:
+                  "#0f172a",
+                boxShadow:
+                  "0 24px 70px rgba(0,0,0,0.45)",
+              }}
+            >
+              <div
+                style={{
+                  display:
+                    "flex",
+                  justifyContent:
+                    "space-between",
+                  alignItems:
+                    "center",
+                  gap:
+                    12,
+                  flexWrap:
+                    "wrap",
+                }}
+              >
+                <div>
+                  <h1
+                    style={{
+                      margin:
+                        0,
+                      fontSize:
+                        24,
+                    }}
+                  >
+                    {
+                      generatedReport.title
+                    }
+                  </h1>
+
+                  <div
+                    style={{
+                      marginTop:
+                        5,
+                      color:
+                        "#64748b",
+                      fontSize:
+                        12,
+                    }}
+                  >
+                    Generated{" "}
+                    {
+                      generatedReport.generatedAt
+                    }
+                  </div>
+                </div>
+
+                <div
+                  className="lab-report-actions"
+                  style={{
+                    display:
+                      "flex",
+                    gap:
+                      8,
+                    flexWrap:
+                      "wrap",
+                  }}
+                >
+                  <button
+                    onClick={
+                      copyLabReport
+                    }
+                    style={{
+                      padding:
+                        "9px 12px",
+                      border:
+                        "1px solid #cbd5e1",
+                      borderRadius:
+                        8,
+                      background:
+                        "white",
+                      color:
+                        "#0f172a",
+                      fontWeight:
+                        700,
+                      cursor:
+                        "pointer",
+                    }}
+                  >
+                    Copy
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      window.print()
+                    }
+                    style={{
+                      padding:
+                        "9px 12px",
+                      border:
+                        0,
+                      borderRadius:
+                        8,
+                      background:
+                        "#2563eb",
+                      color:
+                        "white",
+                      fontWeight:
+                        700,
+                      cursor:
+                        "pointer",
+                    }}
+                  >
+                    Print / Save PDF
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      setReportVisible(
+                        false
+                      )
+                    }
+                    style={{
+                      padding:
+                        "9px 12px",
+                      border:
+                        0,
+                      borderRadius:
+                        8,
+                      background:
+                        "#0f172a",
+                      color:
+                        "white",
+                      fontWeight:
+                        700,
+                      cursor:
+                        "pointer",
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop:
+                    20,
+                  display:
+                    "grid",
+                  gridTemplateColumns:
+                    "repeat(2, minmax(0, 1fr))",
+                  gap:
+                    12,
+                }}
+              >
+                {/* Official reference configuration. */}
+                <section
+                  style={{
+                    padding:
+                      12,
+                    border:
+                      "1px solid #cbd5e1",
+                    borderRadius:
+                      10,
+                  }}
+                >
+                  <h2>
+                    Reference setup
+                  </h2>
+
+                  <p>
+                    {
+                      generatedReport
+                        .referenceSetup
+                        .voltageVrms
+                    }{" "}
+                    Vrms ·{" "}
+                    {
+                      generatedReport
+                        .referenceSetup
+                        .frequencyHz
+                    }{" "}
+                    Hz ·{" "}
+                    {
+                      generatedReport
+                        .referenceSetup
+                        .resistanceOhm
+                    }{" "}
+                    Ω ·{" "}
+                    {
+                      generatedReport
+                        .referenceSetup
+                        .capacitanceUf
+                    }{" "}
+                    µF
+                  </p>
+
+                  <div
+                    style={{
+                      color:
+                        "#475569",
+                      fontSize:
+                        12,
+                      lineHeight:
+                        1.6,
+                    }}
+                  >
+                    Expected: IR{" "}
+                    {(
+                      generatedReport
+                        .referenceSnapshot
+                        .IR *
+                      1000
+                    ).toFixed(
+                      2
+                    )}{" "}
+                    mA · IC{" "}
+                    {(
+                      generatedReport
+                        .referenceSnapshot
+                        .IC *
+                      1000
+                    ).toFixed(
+                      2
+                    )}{" "}
+                    mA · IT{" "}
+                    {(
+                      generatedReport
+                        .referenceSnapshot
+                        .IT *
+                      1000
+                    ).toFixed(
+                      2
+                    )}{" "}
+                    mA · φ{" "}
+                    {
+                      generatedReport
+                        .referenceSnapshot
+                        .phiDeg.toFixed(
+                          1
+                        )
+                    }° · Z{" "}
+                    {
+                      generatedReport
+                        .referenceSnapshot
+                        .Z.toFixed(
+                          1
+                        )
+                    } Ω
+                  </div>
+                </section>
+
+                {/* Actual setup at report generation time. */}
+                <section
+                  style={{
+                    padding:
+                      12,
+                    border:
+                      "1px solid #cbd5e1",
+                    borderRadius:
+                      10,
+                  }}
+                >
+                  <h2>
+                    Final observed setup
+                  </h2>
+
+                  <p>
+                    {
+                      generatedReport
+                        .setup
+                        .voltageVrms
+                    }{" "}
+                    Vrms ·{" "}
+                    {
+                      generatedReport
+                        .setup
+                        .frequencyHz
+                    }{" "}
+                    Hz ·{" "}
+                    {
+                      generatedReport
+                        .setup
+                        .resistanceOhm
+                    }{" "}
+                    Ω ·{" "}
+                    {
+                      generatedReport
+                        .setup
+                        .capacitanceUf
+                    }{" "}
+                    µF
+                  </p>
+                </section>
+              </div>
+
+              <section
+                style={{
+                  marginTop:
+                    14,
+                }}
+              >
+                <h2>
+                  Snapshot at report generation
+                </h2>
+
+                <p>
+                  IR{" "}
+                  {(
+                    generatedReport
+                      .liveSnapshot
+                      .IR *
+                    1000
+                  ).toFixed(
+                    2
+                  )}{" "}
+                  mA · IC{" "}
+                  {(
+                    generatedReport
+                      .liveSnapshot
+                      .IC *
+                    1000
+                  ).toFixed(
+                    2
+                  )}{" "}
+                  mA · IT{" "}
+                  {(
+                    generatedReport
+                      .liveSnapshot
+                      .IT *
+                    1000
+                  ).toFixed(
+                    2
+                  )}{" "}
+                  mA · φ{" "}
+                  {
+                    generatedReport
+                      .liveSnapshot
+                      .phiDeg.toFixed(
+                        1
+                      )
+                  }° · Z{" "}
+                  {
+                    generatedReport
+                      .liveSnapshot
+                      .Z.toFixed(
+                        1
+                      )
+                  } Ω
+                </p>
+              </section>
+
+              <section
+                style={{
+                  marginTop:
+                    14,
+                }}
+              >
+                <h2>
+                  Measurement log
+                </h2>
+
+                <div
+                  style={{
+                    overflowX:
+                      "auto",
+                  }}
+                >
+                  <table
+                    style={{
+                      width:
+                        "100%",
+                      borderCollapse:
+                        "collapse",
+                      fontSize:
+                        12,
+                    }}
+                  >
+                    <thead>
+                      <tr>
+                        {[
+                          "Point",
+                          "Frequency",
+                          "Measured",
+                          "Theoretical",
+                          "Error",
+                        ].map(
+                          (
+                            heading
+                          ) => (
+                            <th
+                              key={
+                                heading
+                              }
+                              style={{
+                                textAlign:
+                                  "left",
+                                padding:
+                                  8,
+                                borderBottom:
+                                  "1px solid #cbd5e1",
+                              }}
+                            >
+                              {
+                                heading
+                              }
+                            </th>
+                          )
+                        )}
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {
+                        generatedReport
+                          .measurements
+                          .map(
+                            (
+                              row,
+                              index
+                            ) => (
+                              <tr
+                                key={`${row.point}-${row.timestamp}-${index}`}
+                              >
+                                <td
+                                  style={{
+                                    padding:
+                                      8,
+                                  }}
+                                >
+                                  {
+                                    row.point
+                                  }
+                                </td>
+
+                                <td
+                                  style={{
+                                    padding:
+                                      8,
+                                  }}
+                                >
+                                  {
+                                    row.frequencyHz
+                                  }{" "}
+                                  Hz
+                                </td>
+
+                                <td
+                                  style={{
+                                    padding:
+                                      8,
+                                  }}
+                                >
+                                  {
+                                    (
+                                      row.measuredCurrentRmsA *
+                                      1000
+                                    ).toFixed(
+                                      2
+                                    )
+                                  }{" "}
+                                  mA
+                                </td>
+
+                                <td
+                                  style={{
+                                    padding:
+                                      8,
+                                  }}
+                                >
+                                  {
+                                    (
+                                      row.theoreticalCurrentRmsA *
+                                      1000
+                                    ).toFixed(
+                                      2
+                                    )
+                                  }{" "}
+                                  mA
+                                </td>
+
+                                <td
+                                  style={{
+                                    padding:
+                                      8,
+                                  }}
+                                >
+                                  {
+                                    row.percentError ===
+                                      null
+                                      ? "n/a"
+                                      : `${row.percentError.toFixed(2)}%`
+                                  }
+                                </td>
+                              </tr>
+                            )
+                          )
+                      }
+                    </tbody>
+                  </table>
+                </div>
+
+                <p
+                  style={{
+                    color:
+                      "#475569",
+                  }}
+                >
+                  {
+                    generatedReport
+                      .measurementSummary
+                      .count
+                  }{" "}
+                  measurements logged ·{" "}
+                  {
+                    generatedReport
+                      .measurementSummary
+                      .averageError ===
+                      null
+                      ? "Average error unavailable"
+                      : `Average error ${generatedReport.measurementSummary.averageError.toFixed(2)}%`
+                  }
+                </p>
+              </section>
+
+              <section
+                style={{
+                  marginTop:
+                    14,
+                }}
+              >
+                <h2>
+                  Safety verification
+                </h2>
+
+                <p>
+                  Trip observed:{" "}
+                  {
+                    generatedReport
+                      .safety
+                      .tripObserved
+                      ? "Yes"
+                      : "No"
+                  }{" "}
+                  · Recovery observed:{" "}
+                  {
+                    generatedReport
+                      .safety
+                      .recoveryObserved
+                      ? "Yes"
+                      : "No"
+                  }
+                </p>
+              </section>
+
+              <section
+                style={{
+                  marginTop:
+                    14,
+                }}
+              >
+                <h2>
+                  Reflection
+                </h2>
+
+                <p>
+                  <strong>
+                    Observation:
+                  </strong>{" "}
+                  {
+                    generatedReport
+                      .reflection
+                      .observation ||
+                    "Not entered."
+                  }
+                </p>
+
+                <p>
+                  <strong>
+                    Frequency/current relationship:
+                  </strong>{" "}
+                  {
+                    generatedReport
+                      .reflection
+                      .frequencyExplanation ||
+                    "Not entered."
+                  }
+                </p>
+
+                <p>
+                  <strong>
+                    Safety explanation:
+                  </strong>{" "}
+                  {
+                    generatedReport
+                      .reflection
+                      .safetyExplanation ||
+                    "Not entered."
+                  }
+                </p>
+              </section>
+            </div>
+          </>
+        )
+      }
+
+      {/* BOTTOM HINT */}
       <div
         style={{
           position:
             "absolute",
-          bottom: 18,
-          left: "50%",
+          bottom:
+            18,
+          left:
+            "50%",
           transform:
             "translateX(-50%)",
           padding:
@@ -3214,16 +4153,24 @@ export default function App() {
             13,
           color:
             "#cbd5e1",
-          zIndex: 10,
+          zIndex:
+            10,
           whiteSpace:
             "nowrap",
         }}
       >
-        {progress.currentStep === 7
-          ? "Step 7 · Trigger the safety trip, reduce stress, then restart"
-          : progress.currentStep === 6
-            ? "Step 6 · Sweep frequency until IC ≈ 5 × IR"
-            : "Move the current clamp between the glowing measurement points"}
+        {
+          progress.currentStep ===
+            7
+            ? "Step 7 · Trigger the safety trip, reduce stress, then restart"
+            : progress.currentStep ===
+              6
+              ? "Step 6 · Sweep frequency until IC ≈ 5 × IR"
+              : progress.currentStep >=
+                8
+                ? "Step 8 · Complete your reflection and generate the final report"
+                : "Move the current clamp between the glowing measurement points"
+        }
       </div>
     </div>
   );
