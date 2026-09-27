@@ -27,32 +27,42 @@ export const CLAMP_TRAY_POSITION = [
 const DRAG_HEIGHT = 0.72;
 const SNAP_RADIUS = 1.35;
 
+// Rich lab-instrument palette.
+// Copper = physical clamp hardware.
+// Teal = live measurement / instrument feedback.
+// Steel = passive metal.
+// Graphite = handle / body.
+const COLORS = {
+    copper: "#B96843",
+    copperDark: "#6D3E2F",
+    copperHighlight: "#D28A62",
+
+    graphite: "#18201D",
+    graphiteDark: "#0E1412",
+
+    steel: "#AEB7B2",
+    steelDark: "#65706B",
+
+    teal: "#2F9C95",
+    tealBright: "#57C5BC",
+    tealDark: "#174F4B",
+
+    targetIdle: "#78857F",
+    targetAvailable: "#3D8B83",
+};
+
 // Convert a measurement point into a world-space location.
-//
-// R and C follow the actual snapped component columns.
-// The total-current point is placed only when both components
-// are connected.
 export function getMeasurementPointPosition(
     point,
     resistorColumn,
     capacitorColumn
 ) {
-    if (
-        point ===
-        MEASUREMENT_POINTS.P_R
-    ) {
-        // P_R is only a valid measurement location when
-        // the resistor has actually been placed on the board.
-        if (
-            resistorColumn === null
-        ) {
+    if (point === MEASUREMENT_POINTS.P_R) {
+        if (resistorColumn === null) {
             return null;
         }
 
-        const pair =
-            getColumnSocketPair(
-                resistorColumn
-            );
+        const pair = getColumnSocketPair(resistorColumn);
 
         if (!pair) {
             return null;
@@ -65,22 +75,12 @@ export function getMeasurementPointPosition(
         ];
     }
 
-    if (
-        point ===
-        MEASUREMENT_POINTS.P_C
-    ) {
-        // P_C is only a valid measurement location when
-        // the capacitor has actually been placed on the board.
-        if (
-            capacitorColumn === null
-        ) {
+    if (point === MEASUREMENT_POINTS.P_C) {
+        if (capacitorColumn === null) {
             return null;
         }
 
-        const pair =
-            getColumnSocketPair(
-                capacitorColumn
-            );
+        const pair = getColumnSocketPair(capacitorColumn);
 
         if (!pair) {
             return null;
@@ -93,12 +93,7 @@ export function getMeasurementPointPosition(
         ];
     }
 
-    if (
-        point ===
-        MEASUREMENT_POINTS.P_TOT
-    ) {
-        // Total current is only measurable after BOTH
-        // parallel branches have been assembled.
+    if (point === MEASUREMENT_POINTS.P_TOT) {
         if (
             resistorColumn === null ||
             capacitorColumn === null
@@ -113,12 +108,9 @@ export function getMeasurementPointPosition(
         ];
     }
 
-    // Unknown measurement points are treated as unavailable.
     return null;
 }
 
-// Decide whether a particular measurement point is currently
-// available in the assembled laboratory.
 function isMeasurementPointAvailable(
     point,
     resistorColumn,
@@ -133,11 +125,6 @@ function isMeasurementPointAvailable(
     );
 }
 
-// Find the nearest currently available measurement point.
-//
-// IMPORTANT:
-// We only create candidates for measurement locations whose
-// corresponding physical component has actually been placed.
 function findNearestMeasurementPoint(
     position,
     resistorColumn,
@@ -145,7 +132,6 @@ function findNearestMeasurementPoint(
 ) {
     const candidates = [];
 
-    // Add resistor measurement point only when R exists.
     if (
         isMeasurementPointAvailable(
             MEASUREMENT_POINTS.P_R,
@@ -154,18 +140,15 @@ function findNearestMeasurementPoint(
         )
     ) {
         candidates.push({
-            id:
+            id: MEASUREMENT_POINTS.P_R,
+            position: getMeasurementPointPosition(
                 MEASUREMENT_POINTS.P_R,
-            position:
-                getMeasurementPointPosition(
-                    MEASUREMENT_POINTS.P_R,
-                    resistorColumn,
-                    capacitorColumn
-                ),
+                resistorColumn,
+                capacitorColumn
+            ),
         });
     }
 
-    // Add capacitor measurement point only when C exists.
     if (
         isMeasurementPointAvailable(
             MEASUREMENT_POINTS.P_C,
@@ -174,19 +157,15 @@ function findNearestMeasurementPoint(
         )
     ) {
         candidates.push({
-            id:
+            id: MEASUREMENT_POINTS.P_C,
+            position: getMeasurementPointPosition(
                 MEASUREMENT_POINTS.P_C,
-            position:
-                getMeasurementPointPosition(
-                    MEASUREMENT_POINTS.P_C,
-                    resistorColumn,
-                    capacitorColumn
-                ),
+                resistorColumn,
+                capacitorColumn
+            ),
         });
     }
 
-    // Add total-current measurement point only when
-    // both branches exist.
     if (
         isMeasurementPointAvailable(
             MEASUREMENT_POINTS.P_TOT,
@@ -195,54 +174,40 @@ function findNearestMeasurementPoint(
         )
     ) {
         candidates.push({
-            id:
+            id: MEASUREMENT_POINTS.P_TOT,
+            position: getMeasurementPointPosition(
                 MEASUREMENT_POINTS.P_TOT,
-            position:
-                getMeasurementPointPosition(
-                    MEASUREMENT_POINTS.P_TOT,
-                    resistorColumn,
-                    capacitorColumn
-                ),
+                resistorColumn,
+                capacitorColumn
+            ),
         });
     }
 
     let nearest = null;
-    let nearestDistance =
-        Infinity;
+    let nearestDistance = Infinity;
 
-    candidates.forEach(
-        (candidate) => {
-            const dx =
-                position[0] -
-                candidate.position[0];
+    candidates.forEach((candidate) => {
+        const dx =
+            position[0] -
+            candidate.position[0];
 
-            const dz =
-                position[2] -
-                candidate.position[2];
+        const dz =
+            position[2] -
+            candidate.position[2];
 
-            const distance =
-                Math.sqrt(
-                    dx * dx +
-                    dz * dz
-                );
+        const distance = Math.sqrt(
+            dx * dx + dz * dz
+        );
 
-            if (
-                distance <
-                nearestDistance
-            ) {
-                nearest =
-                    candidate;
-
-                nearestDistance =
-                    distance;
-            }
+        if (distance < nearestDistance) {
+            nearest = candidate;
+            nearestDistance = distance;
         }
-    );
+    });
 
     if (
         nearest &&
-        nearestDistance <=
-        SNAP_RADIUS
+        nearestDistance <= SNAP_RADIUS
     ) {
         return nearest.id;
     }
@@ -250,56 +215,32 @@ function findNearestMeasurementPoint(
     return null;
 }
 
-// Render the virtual AC current clamp probe.
+// Render the current clamp instrument.
 export default function CurrentClamp({
     point = null,
     resistorColumn = null,
     capacitorColumn = null,
     onPointChange,
 }) {
-    const [
-        dragging,
-        setDragging,
-    ] = useState(false);
+    const [dragging, setDragging] = useState(false);
+    const [dragPosition, setDragPosition] = useState(null);
 
-    const [
-        dragPosition,
-        setDragPosition,
-    ] = useState(null);
+    const dragPositionRef = useRef(null);
 
-    // Keep the latest drag position outside React state.
-    //
-    // This is important because pointerup can happen before React
-    // has rendered the final setDragPosition() update.
-    const dragPositionRef =
-        useRef(null);
-
-    // Reusable plane for pointer dragging.
     const dragPlane = useMemo(
         () =>
             new THREE.Plane(
-                new THREE.Vector3(
-                    0,
-                    1,
-                    0
-                ),
+                new THREE.Vector3(0, 1, 0),
                 -DRAG_HEIGHT
             ),
         []
     );
 
-    // Reusable vector prevents creating objects during pointer movement.
-    const pointerPosition =
-        useMemo(
-            () =>
-                new THREE.Vector3(),
-            []
-        );
+    const pointerPosition = useMemo(
+        () => new THREE.Vector3(),
+        []
+    );
 
-    // Determine where the clamp belongs when it is not being dragged.
-    //
-    // If the stored measurement point is no longer valid because
-    // a component was removed, fall back to the tray.
     const selectedTargetPosition =
         point
             ? getMeasurementPointPosition(
@@ -314,14 +255,11 @@ export default function CurrentClamp({
         CLAMP_TRAY_POSITION;
 
     const renderPosition =
-        dragging &&
-            dragPosition
+        dragging && dragPosition
             ? dragPosition
             : currentTargetPosition;
 
-    function handlePointerDown(
-        event
-    ) {
+    function handlePointerDown(event) {
         event.stopPropagation();
 
         event.target.setPointerCapture?.(
@@ -334,20 +272,14 @@ export default function CurrentClamp({
             renderPosition[2],
         ];
 
-        // Store the starting point in both places.
         dragPositionRef.current =
             startingPosition;
 
-        setDragPosition(
-            startingPosition
-        );
-
+        setDragPosition(startingPosition);
         setDragging(true);
     }
 
-    function handlePointerMove(
-        event
-    ) {
+    function handlePointerMove(event) {
         if (!dragging) {
             return;
         }
@@ -370,20 +302,13 @@ export default function CurrentClamp({
             hit.z,
         ];
 
-        // Update the ref immediately.
-        // This becomes the authoritative position for pointerup.
         dragPositionRef.current =
             nextPosition;
 
-        // State is still updated so the 3D object visually moves.
-        setDragPosition(
-            nextPosition
-        );
+        setDragPosition(nextPosition);
     }
 
-    function handlePointerUp(
-        event
-    ) {
+    function handlePointerUp(event) {
         if (!dragging) {
             return;
         }
@@ -394,17 +319,10 @@ export default function CurrentClamp({
             event.pointerId
         );
 
-        // IMPORTANT:
-        // Use the latest ref value instead of React state.
-        // React state can still contain the previous pointer position
-        // during the same event cycle.
         let finalPosition =
             dragPositionRef.current ??
             renderPosition;
 
-        // Perform one final ray → plane calculation using the actual
-        // pointerup event. This handles the case where the last
-        // pointermove event was skipped or happened immediately before release.
         const finalHit =
             event.ray.intersectPlane(
                 dragPlane,
@@ -426,23 +344,14 @@ export default function CurrentClamp({
                 capacitorColumn
             );
 
-        if (snappedPoint) {
-            // Successful measurement-point snap.
-            onPointChange(
-                snappedPoint
-            );
-        } else {
-            // Dropping away from every currently valid measurement
-            // location returns the clamp to its tray.
-            onPointChange(null);
-        }
+        onPointChange(
+            snappedPoint ?? null
+        );
 
         setDragging(false);
         setDragPosition(null);
 
-        // Clear the temporary drag position after the drop is complete.
-        dragPositionRef.current =
-            null;
+        dragPositionRef.current = null;
     }
 
     const measurementIds = [
@@ -457,110 +366,153 @@ export default function CurrentClamp({
                 MEASUREMENT TARGETS
             ----------------------------------------------------- */}
 
-            {measurementIds.map(
-                (measurementId) => {
-                    const position =
-                        getMeasurementPointPosition(
-                            measurementId,
-                            resistorColumn,
-                            capacitorColumn
-                        );
+            {measurementIds.map((measurementId) => {
+                const position =
+                    getMeasurementPointPosition(
+                        measurementId,
+                        resistorColumn,
+                        capacitorColumn
+                    );
 
-                    // IMPORTANT:
-                    // Do not render a measurement ring when its
-                    // physical component does not exist.
-                    //
-                    // This fixes the original bug where P_C could
-                    // still be selected while the capacitor was
-                    // sitting in the tray.
-                    if (!position) {
-                        return null;
-                    }
+                if (!position) {
+                    return null;
+                }
 
-                    const active =
-                        point ===
-                        measurementId;
+                const active =
+                    point === measurementId;
 
-                    return (
-                        <group
-                            key={
-                                measurementId
-                            }
-                            position={[
-                                position[0],
-                                0.22,
-                                position[2],
+                return (
+                    <group
+                        key={measurementId}
+                        position={[
+                            position[0],
+                            0.225,
+                            position[2],
+                        ]}
+                    >
+                        {/* Broad low-opacity placement guide. */}
+                        <mesh
+                            rotation={[
+                                -Math.PI / 2,
+                                0,
+                                0,
                             ]}
                         >
-                            {/* Ring makes the measurement location
-                                visible in the 3D scene. */}
-                            <mesh
-                                rotation={[
-                                    -Math.PI / 2,
-                                    0,
-                                    0,
+                            <ringGeometry
+                                args={[
+                                    active
+                                        ? 0.31
+                                        : 0.24,
+                                    active
+                                        ? 0.37
+                                        : 0.29,
+                                    32,
                                 ]}
-                            >
-                                <torusGeometry
-                                    args={[
-                                        active
-                                            ? 0.36
-                                            : 0.28,
-                                        0.045,
-                                        10,
-                                        24,
-                                    ]}
-                                />
+                            />
 
-                                <meshStandardMaterial
-                                    color={
-                                        active
-                                            ? "#22c55e"
-                                            : "#8b5cf6"
-                                    }
-                                    emissive={
-                                        active
-                                            ? "#166534"
-                                            : "#312e81"
-                                    }
-                                    emissiveIntensity={
-                                        active
-                                            ? 0.9
-                                            : 0.35
-                                    }
-                                    transparent
-                                    opacity={
-                                        dragging
-                                            ? 0.95
-                                            : 0.65
-                                    }
-                                />
-                            </mesh>
-                        </group>
-                    );
-                }
-            )}
+                            <meshBasicMaterial
+                                color={
+                                    active
+                                        ? COLORS.tealBright
+                                        : COLORS.targetIdle
+                                }
+                                transparent
+                                opacity={
+                                    active
+                                        ? 0.18
+                                        : 0.10
+                                }
+                                depthWrite={false}
+                            />
+                        </mesh>
+
+                        {/* Main precision target ring. */}
+                        <mesh
+                            rotation={[
+                                -Math.PI / 2,
+                                0,
+                                0,
+                            ]}
+                        >
+                            <torusGeometry
+                                args={[
+                                    active
+                                        ? 0.31
+                                        : 0.26,
+                                    0.035,
+                                    12,
+                                    32,
+                                ]}
+                            />
+
+                            <meshStandardMaterial
+                                color={
+                                    active
+                                        ? COLORS.tealBright
+                                        : COLORS.targetAvailable
+                                }
+                                emissive={
+                                    active
+                                        ? COLORS.tealDark
+                                        : "#000000"
+                                }
+                                emissiveIntensity={
+                                    active
+                                        ? 0.8
+                                        : 0.05
+                                }
+                                metalness={0.25}
+                                roughness={0.35}
+                            />
+                        </mesh>
+
+                        {/* Small center marker gives the target a
+                            calibrated-instrument feel. */}
+                        <mesh position={[0, 0.012, 0]}>
+                            <sphereGeometry
+                                args={[
+                                    active
+                                        ? 0.055
+                                        : 0.04,
+                                    10,
+                                    10,
+                                ]}
+                            />
+
+                            <meshStandardMaterial
+                                color={
+                                    active
+                                        ? COLORS.tealBright
+                                        : COLORS.steel
+                                }
+                                emissive={
+                                    active
+                                        ? COLORS.tealDark
+                                        : "#000000"
+                                }
+                                emissiveIntensity={
+                                    active
+                                        ? 0.55
+                                        : 0
+                                }
+                                metalness={0.3}
+                                roughness={0.4}
+                            />
+                        </mesh>
+                    </group>
+                );
+            })}
 
             {/* ----------------------------------------------------
                 CURRENT CLAMP
             ----------------------------------------------------- */}
 
             <group
-                position={
-                    renderPosition
-                }
-                onPointerDown={
-                    handlePointerDown
-                }
-                onPointerMove={
-                    handlePointerMove
-                }
-                onPointerUp={
-                    handlePointerUp
-                }
-                onPointerOver={(
-                    event
-                ) => {
+                position={renderPosition}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerOver={(event) => {
                     event.stopPropagation();
 
                     document.body.style.cursor =
@@ -573,39 +525,61 @@ export default function CurrentClamp({
                     }
                 }}
             >
-                {/* Clamp jaw / loop. */}
-                <mesh>
+                {/* Lower copper clamp jaw. */}
+                <mesh rotation={[0, 0, Math.PI / 2]}>
                     <torusGeometry
                         args={[
-                            0.34,
-                            0.09,
-                            12,
-                            24,
+                            0.30,
+                            0.075,
+                            14,
+                            32,
                         ]}
                     />
 
                     <meshStandardMaterial
                         color={
                             dragging
-                                ? "#facc15"
-                                : "#fb923c"
+                                ? COLORS.copperHighlight
+                                : COLORS.copper
                         }
-                        metalness={0.35}
-                        roughness={0.42}
+                        metalness={0.62}
+                        roughness={0.28}
                         emissive={
                             dragging
-                                ? "#854d0e"
-                                : "#431407"
+                                ? COLORS.copperDark
+                                : "#000000"
                         }
                         emissiveIntensity={
                             dragging
-                                ? 0.8
-                                : 0.25
+                                ? 0.35
+                                : 0
                         }
                     />
                 </mesh>
 
-                {/* Probe handle. */}
+                {/* Dark insulating bridge inside the jaw. */}
+                <mesh
+                    position={[
+                        0,
+                        0,
+                        0,
+                    ]}
+                >
+                    <boxGeometry
+                        args={[
+                            0.16,
+                            0.10,
+                            0.16,
+                        ]}
+                    />
+
+                    <meshStandardMaterial
+                        color={COLORS.graphiteDark}
+                        roughness={0.62}
+                    />
+                </mesh>
+
+                {/* Vertical rubberized handle. */}
                 <mesh
                     position={[
                         0,
@@ -623,13 +597,36 @@ export default function CurrentClamp({
                     />
 
                     <meshStandardMaterial
-                        color="#334155"
-                        metalness={0.65}
+                        color={COLORS.graphite}
+                        roughness={0.72}
+                        metalness={0.05}
+                    />
+                </mesh>
+
+                {/* Small steel shoulder between jaw and grip. */}
+                <mesh
+                    position={[
+                        0,
+                        0.16,
+                        0,
+                    ]}
+                >
+                    <boxGeometry
+                        args={[
+                            0.25,
+                            0.10,
+                            0.25,
+                        ]}
+                    />
+
+                    <meshStandardMaterial
+                        color={COLORS.steelDark}
+                        metalness={0.55}
                         roughness={0.3}
                     />
                 </mesh>
 
-                {/* Small probe indicator. */}
+                {/* Teal instrument status tip. */}
                 <mesh
                     position={[
                         0,
@@ -639,40 +636,68 @@ export default function CurrentClamp({
                 >
                     <sphereGeometry
                         args={[
-                            0.11,
-                            12,
-                            12,
+                            0.10,
+                            16,
+                            16,
                         ]}
                     />
 
                     <meshStandardMaterial
-                        color="#22c55e"
-                        emissive="#14532d"
-                        emissiveIntensity={0.7}
+                        color={
+                            dragging
+                                ? COLORS.tealBright
+                                : COLORS.teal
+                        }
+                        emissive={COLORS.tealDark}
+                        emissiveIntensity={
+                            dragging
+                                ? 0.9
+                                : 0.45
+                        }
+                        metalness={0.12}
+                        roughness={0.28}
                     />
                 </mesh>
 
-                {/* The probe is kept separate from the circuit physics.
-                    It represents a virtual non-invasive current sensor. */}
+                {/* Small copper pivot detail. */}
+                <mesh
+                    position={[
+                        0,
+                        0.22,
+                        0.14,
+                    ]}
+                >
+                    <cylinderGeometry
+                        args={[
+                            0.045,
+                            0.045,
+                            0.04,
+                            20,
+                        ]}
+                    />
+
+                    <meshStandardMaterial
+                        color={COLORS.copperHighlight}
+                        metalness={0.7}
+                        roughness={0.25}
+                    />
+                </mesh>
             </group>
         </>
     );
 }
 
 // MY UNDERSTANDING:
-// The clamp does not change the ideal RC circuit because it is only
-// a virtual sensor selecting where current is observed.
+// The clamp is a virtual measurement instrument, not part of the
+// electrical circuit itself. It only selects which current is observed.
 //
-// P_R represents the resistor branch current,
-// P_C represents the capacitor branch current,
-// and P_TOT represents the total current.
+// P_R = resistor-branch current.
+// P_C = capacitor-branch current.
+// P_TOT = total current.
 //
-// A measurement point now exists only when the corresponding physical
-// circuit branch exists. Therefore P_C cannot be selected while the
-// capacitor is still sitting in the tray.
+// The three measurement targets appear only when their corresponding
+// circuit branch exists. This prevents invalid measurement states.
 //
-// P_TOT also waits until both R and C are connected because total
-// parallel-branch current only makes sense after the two branches exist.
-//
-// The drag position uses a ref because the pointer can move and release
-// faster than React can render every state update.
+// Teal is reserved for live measurement feedback, while copper is
+// reserved for the physical clamp hardware. This keeps the visual
+// language consistent with the lab's new colour system.

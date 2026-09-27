@@ -127,8 +127,10 @@ export default function Oscilloscope({
     onControlChange,
     analysisMode = false,
 }) {
-    const width = 680;
-    const traceHeight = analysisMode ? 150 : 208;
+    // The Analysis dock uses a much shorter trace so the physical lab,
+    // phasor, and scope can coexist in the same viewport.
+    const width = analysisMode ? 1100 : 680;
+    const traceHeight = analysisMode ? 112 : 208;
 
     const timeWindowSeconds =
         (timePerDivMs * 10) / 1000;
@@ -192,18 +194,44 @@ export default function Oscilloscope({
             aria-label="Oscilloscope"
             style={{
                 position: "fixed",
+
+                // In Analysis the scope becomes a deliberate bottom dock
+                // that stops above the left rail and leaves the 3D lab visible.
                 left: analysisMode ? 364 : "auto",
                 right: analysisMode ? 24 : 28,
                 bottom: analysisMode ? 18 : 28,
-                width: analysisMode ? "auto" : "min(700px, 52vw)",
-                minWidth: analysisMode ? 0 : 520,
-                maxHeight: analysisMode ? "34vh" : "none",
+
+                width: analysisMode
+                    ? "calc(100vw - 388px)"
+                    : "min(700px, 52vw)",
+
+                maxWidth: analysisMode
+                    ? "calc(100vw - 388px)"
+                    : "none",
+
+                minWidth: analysisMode
+                    ? 0
+                    : 520,
+
+                // Compact Analysis dock. The total visual height is kept
+                // around 250–270 px so the scope supports the phasor
+                // instead of competing with it.
+                height: analysisMode
+                    ? 258
+                    : "auto",
+
+                maxHeight: analysisMode
+                    ? 258
+                    : "none",
+
                 background: COLORS.panel,
                 border: `1px solid ${COLORS.gridStrong}`,
-                boxShadow: "0 18px 42px rgba(0,0,0,0.28)",
+                boxShadow:
+                    "0 14px 34px rgba(0,0,0,0.30)",
                 zIndex: 22,
                 pointerEvents: "none",
                 overflow: "hidden",
+                boxSizing: "border-box",
             }}
         >
             {/* Thin copper instrument rail gives the scope a physical identity. */}
@@ -221,8 +249,13 @@ export default function Oscilloscope({
                     gridTemplateColumns: "1fr auto",
                     gap: 16,
                     alignItems: "center",
-                    padding: analysisMode ? "7px 11px" : "10px 13px",
-                    borderBottom: `1px solid ${COLORS.grid}`,
+                    padding: analysisMode
+                        ? "7px 11px"
+                        : "10px 13px",
+                    borderBottom:
+                        `1px solid ${COLORS.grid}`,
+                    minHeight: 32,
+                    boxSizing: "border-box",
                 }}
             >
                 <div
@@ -279,9 +312,13 @@ export default function Oscilloscope({
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: 18,
-                    padding: "8px 13px",
-                    borderBottom: `1px solid ${COLORS.grid}`,
-                    background: COLORS.panelRaised,
+                    padding: "6px 11px",
+                    borderBottom:
+                        `1px solid ${COLORS.grid}`,
+                    background:
+                        COLORS.panelRaised,
+                    minHeight: 28,
+                    boxSizing: "border-box",
                 }}
             >
                 <div
@@ -323,13 +360,22 @@ export default function Oscilloscope({
             {/* Main trace area. */}
             <div
                 style={{
-                    padding: analysisMode ? 8 : 12,
+                    padding:
+                        analysisMode
+                            ? 6
+                            : 12,
+                    boxSizing: "border-box",
                 }}
             >
                 <svg
                     viewBox={`0 0 ${width} ${traceHeight}`}
                     width="100%"
-                    height={traceHeight}
+                    height={
+                        analysisMode
+                            ? 112
+                            : 208
+                    }
+                    preserveAspectRatio="none"
                     style={{
                         display: "block",
                         background: "#0B100E",
@@ -425,7 +471,7 @@ export default function Oscilloscope({
                         y={19}
                         fill={COLORS.voltage}
                         fontFamily="IBM Plex Mono, monospace"
-                        fontSize={11}
+                        fontSize={10}
                         fontWeight={700}
                     >
                         CH1  V
@@ -433,10 +479,10 @@ export default function Oscilloscope({
 
                     <text
                         x={12}
-                        y={36}
+                        y={32}
                         fill={COLORS.currentBright}
                         fontFamily="IBM Plex Mono, monospace"
-                        fontSize={11}
+                        fontSize={10}
                         fontWeight={700}
                     >
                         CH2  I
@@ -444,11 +490,11 @@ export default function Oscilloscope({
 
                     <text
                         x={width - 12}
-                        y={19}
+                        y={18}
                         textAnchor="end"
                         fill={COLORS.muted}
                         fontFamily="IBM Plex Mono, monospace"
-                        fontSize={10}
+                        fontSize={9}
                     >
                         {clampLabel}
                     </text>
@@ -478,7 +524,10 @@ export default function Oscilloscope({
                         <div
                             key={label}
                             style={{
-                                padding: "8px 10px",
+                                padding:
+                                    analysisMode
+                                        ? "5px 8px"
+                                        : "8px 10px",
                                 borderRight:
                                     index < 3
                                         ? `1px solid ${COLORS.grid}`
@@ -508,7 +557,10 @@ export default function Oscilloscope({
                                             : COLORS.text,
                                     fontFamily:
                                         "IBM Plex Mono, ui-monospace, monospace",
-                                    fontSize: 12,
+                                    fontSize:
+                                        analysisMode
+                                            ? 11
+                                            : 12,
                                     fontWeight: 600,
                                     whiteSpace: "nowrap",
                                 }}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Oscilloscope from "./Oscilloscope";
 
 // ------------------------------------------------------------
@@ -773,6 +773,16 @@ export default function MainDashboard({
   resetLab,
 }) {
   const [activeTab, setActiveTab] = useState("experiment");
+  const railScrollRef = useRef(null);
+
+  // Reset the rail scroll when changing workspace mode so Analysis,
+  // Experiment, and Progress always open from their intended starting point.
+  useEffect(() => {
+    railScrollRef.current?.scrollTo({
+      top: 0,
+      behavior: "auto",
+    });
+  }, [activeTab]);
 
   // Keep each workspace tied to a deliberate camera composition instead of
   // letting the previous workspace leak its camera state into the next one.
@@ -1066,67 +1076,118 @@ export default function MainDashboard({
 
   const renderAnalysis = () => (
     <>
-      <RailSection eyebrow="Analysis cockpit" title="Live parallel-RC response" variant="readout">
-        <div style={{ display: "grid", gap: 13 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12 }}>
-            <div>
-              <div style={{ fontFamily: FONT_CONDENSED, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: COLORS.muted }}>
-                Frequency
-              </div>
-              <div style={{ marginTop: 2, fontFamily: FONT_MONO, fontSize: 24, lineHeight: "28px", color: COLORS.text }}>
-                {formatFrequency(frequencyHz)}
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: FONT_CONDENSED, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: COLORS.muted }}>
-                Ratio IC / IR
-              </div>
-              <div style={{ marginTop: 2, fontFamily: FONT_MONO, fontSize: 18, color: COLORS.measurement }}>
-                {currentRatio.toFixed(2)}×
-              </div>
-            </div>
-          </div>
-          <div style={{ height: 1, background: COLORS.border }} />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <LiveValue label="IR" value={`${(electricalSnapshot.IR * 1000).toFixed(2)} mA`} />
-            <LiveValue label="IC" value={`${(electricalSnapshot.IC * 1000).toFixed(2)} mA`} accent={COLORS.measurement} />
-            <LiveValue label="IT" value={`${(electricalSnapshot.IT * 1000).toFixed(2)} mA`} accent={COLORS.measurement} />
-            <LiveValue label="Phase" value={`${electricalSnapshot.phiDeg.toFixed(1)}° lead`} accent={COLORS.copper} />
-          </div>
-        </div>
-      </RailSection>
+      <RailSection
+        eyebrow="Current analysis"
+        title="Live parallel-RC response"
+        divider
+      >
+        <div style={{ display: "grid", gap: 7 }}>
+          <MeasurementRow
+            label="IR"
+            value={`${(electricalSnapshot.IR * 1000).toFixed(2)} mA`}
+            reference={
+              referenceSnapshot
+                ? `ref ${(referenceSnapshot.IR * 1000).toFixed(2)}`
+                : null
+            }
+          />
 
-      <RailSection eyebrow="Current analysis" title="Calculated impedance" divider>
-        <div style={{ display: "grid", gap: 6 }}>
+          <MeasurementRow
+            label="IC"
+            value={`${(electricalSnapshot.IC * 1000).toFixed(2)} mA`}
+            accent={COLORS.measurement}
+            reference={
+              referenceSnapshot
+                ? `ref ${(referenceSnapshot.IC * 1000).toFixed(2)}`
+                : null
+            }
+          />
+
+          <MeasurementRow
+            label="IT"
+            value={`${(electricalSnapshot.IT * 1000).toFixed(2)} mA`}
+            accent={COLORS.text}
+            reference={
+              referenceSnapshot
+                ? `ref ${(referenceSnapshot.IT * 1000).toFixed(2)}`
+                : null
+            }
+          />
+
+          <MeasurementRow
+            label="φ"
+            value={`${electricalSnapshot.phiDeg.toFixed(1)}° lead`}
+            accent={COLORS.text}
+            reference={
+              referenceSnapshot
+                ? `ref ${referenceSnapshot.phiDeg.toFixed(1)}°`
+                : null
+            }
+          />
+
           <MeasurementRow
             label="Xc"
-            value={Number.isFinite(electricalSnapshot.Xc) ? `${electricalSnapshot.Xc.toFixed(1)} Ω` : "∞"}
+            value={
+              Number.isFinite(electricalSnapshot.Xc)
+                ? `${electricalSnapshot.Xc.toFixed(1)} Ω`
+                : "∞"
+            }
           />
+
           <MeasurementRow
             label="Z"
-            value={Number.isFinite(electricalSnapshot.Z) ? `${electricalSnapshot.Z.toFixed(1)} Ω` : "∞"}
+            value={
+              Number.isFinite(electricalSnapshot.Z)
+                ? `${electricalSnapshot.Z.toFixed(1)} Ω`
+                : "∞"
+            }
+            accent={COLORS.copper}
           />
         </div>
       </RailSection>
 
-      <RailSection eyebrow="5× challenge" title={challengeComplete ? "Threshold reached" : "Not yet at 5× threshold"}>
+      <RailSection
+        eyebrow="5× challenge"
+        title={challengeComplete ? "Threshold reached" : "Not yet at 5× threshold"}
+        divider
+      >
         <div
           style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 8,
             fontFamily: FONT_SANS,
             fontSize: 12,
             lineHeight: "18px",
             color: challengeComplete ? COLORS.success : COLORS.muted,
           }}
         >
-          {challengeComplete
-            ? "The frequency challenge is latched."
-            : `Current ratio ${currentRatio.toFixed(2)}× · sweep frequency until IC ≈ 5 × IR.`}
+          <span
+            style={{
+              fontFamily: FONT_MONO,
+              fontSize: 12,
+              fontVariantNumeric: "tabular-nums",
+              color: challengeComplete ? COLORS.success : COLORS.text,
+            }}
+          >
+            {currentRatio.toFixed(2)}×
+          </span>
+
+          <span>
+            {challengeComplete
+              ? "IC is approximately five times IR."
+              : "Sweep frequency until IC ≈ 5 × IR."}
+          </span>
         </div>
       </RailSection>
 
       {renderSourceControls({ compact: true })}
 
-      <RailSection eyebrow="Scope" title="Oscilloscope controls">
+      <RailSection
+        eyebrow="Scope"
+        title="Oscilloscope controls"
+        divider={false}
+      >
         <button
           type="button"
           onClick={toggleScope}
@@ -1390,6 +1451,7 @@ export default function MainDashboard({
           <ModeTabs activeTab={activeTab} onChange={handleTabChange} />
 
           <div
+            ref={railScrollRef}
             style={{
               flex: 1,
               minHeight: 0,

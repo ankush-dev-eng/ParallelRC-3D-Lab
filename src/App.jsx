@@ -111,163 +111,196 @@ function Resistor({
   onPointerMove,
   onPointerUp,
 }) {
+  // MY UNDERSTANDING:
+  // The resistor group owns only appearance and pointer forwarding.
+  // App still owns the resistor's logical position and snap state.
   return (
     <group
-      position={
-        position
-      }
-
-      onPointerDown={
-        onPointerDown
-      }
-
-      onPointerMove={
-        onPointerMove
-      }
-
-      onPointerUp={
-        onPointerUp
-      }
-
-      onPointerOver={(
-        event
-      ) => {
+      position={position}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerOver={(event) => {
         event.stopPropagation();
-
-        document.body.style.cursor =
-          "grab";
+        document.body.style.cursor = "grab";
       }}
-
       onPointerOut={() => {
         if (!dragging) {
-          document.body.style.cursor =
-            "default";
+          document.body.style.cursor = "default";
         }
       }}
     >
-      <mesh castShadow>
-        <cylinderGeometry
-          args={[
-            0.18,
-            0.18,
-            0.55,
-            20,
-          ]}
-        />
-
+      {/* Warm ceramic resistor body, aligned across the A/B branch. */}
+      <mesh
+        rotation={[Math.PI / 2, 0, 0]}
+        castShadow
+      >
+        <cylinderGeometry args={[0.18, 0.18, 0.58, 32]} />
         <meshStandardMaterial
-          color={
-            dragging
-              ? "#fbbf24"
-              : "#f97316"
-          }
-          roughness={0.5}
+          color={dragging ? "#D9C2A0" : "#C9B287"}
+          roughness={0.48}
+          metalness={0.02}
         />
       </mesh>
 
-      <mesh
-        position={[
-          0,
-          0,
-          0.52,
-        ]}
-      >
-        <cylinderGeometry
-          args={[
-            0.045,
-            0.045,
-            0.42,
-            12,
-          ]}
-        />
-
+      {/* Metallic leads. */}
+      <mesh position={[0, 0, 0.52]} castShadow>
+        <cylinderGeometry args={[0.045, 0.045, 0.42, 16]} />
         <meshStandardMaterial
-          color="#cbd5e1"
-          metalness={0.65}
-          roughness={0.35}
+          color="#AEB5B0"
+          metalness={0.82}
+          roughness={0.26}
         />
       </mesh>
 
-      <mesh
-        position={[
-          0,
-          0,
-          -0.52,
-        ]}
-      >
-        <cylinderGeometry
-          args={[
-            0.045,
-            0.045,
-            0.42,
-            12,
-          ]}
-        />
-
+      <mesh position={[0, 0, -0.52]} castShadow>
+        <cylinderGeometry args={[0.045, 0.045, 0.42, 16]} />
         <meshStandardMaterial
-          color="#cbd5e1"
-          metalness={0.65}
-          roughness={0.35}
+          color="#AEB5B0"
+          metalness={0.82}
+          roughness={0.26}
         />
       </mesh>
 
-      <mesh
-        position={[
-          0,
-          0.14,
-          0,
-        ]}
-      >
-        <boxGeometry
-          args={[
-            0.32,
-            0.03,
-            0.07,
-          ]}
-        />
+      {/* Four resistance bands give the component a recognizable
+          physical-electronics appearance instead of a plain orange pill. */}
+      <mesh position={[0, 0, -0.15]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.186, 0.186, 0.045, 32]} />
+        <meshStandardMaterial color="#6B4730" roughness={0.38} />
+      </mesh>
 
-        <meshBasicMaterial
-          color="#111827"
+      <mesh position={[0, 0, -0.05]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.188, 0.188, 0.045, 32]} />
+        <meshStandardMaterial color="#A34E3A" roughness={0.36} />
+      </mesh>
+
+      <mesh position={[0, 0, 0.05]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.188, 0.188, 0.045, 32]} />
+        <meshStandardMaterial color="#C58A3A" roughness={0.34} metalness={0.04} />
+      </mesh>
+
+      <mesh position={[0, 0, 0.15]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.189, 0.189, 0.045, 32]} />
+        <meshStandardMaterial color="#4A3830" roughness={0.38} />
+      </mesh>
+
+      {/* Small end collars improve the manufactured feel. */}
+      <mesh position={[0, 0, 0.27]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.18, 0.18, 0.035, 32]} />
+        <meshStandardMaterial color="#A69B8B" roughness={0.48} />
+      </mesh>
+
+      <mesh position={[0, 0, -0.27]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.18, 0.18, 0.035, 32]} />
+        <meshStandardMaterial color="#A69B8B" roughness={0.48} />
+      </mesh>
+    </group>
+  );
+}
+
+// ------------------------------------------------------------
+// VISUAL LAB ENVIRONMENT
+// ------------------------------------------------------------
+
+// Small physical knob used by the decorative bench instruments.
+// These objects are visual only; they do not participate in circuit logic.
+function InstrumentKnob({ position, rotation = [0, 0, 0], color = "#737A75" }) {
+  return (
+    <mesh position={position} rotation={rotation} castShadow>
+      <cylinderGeometry args={[0.11, 0.11, 0.07, 20]} />
+      <meshStandardMaterial
+        color={color}
+        metalness={0.55}
+        roughness={0.34}
+      />
+    </mesh>
+  );
+}
+
+// Compact decorative function generator placed in the rear-right of the bench.
+// It provides physical context without changing any simulation state.
+// Decorative laboratory environment.
+// These meshes are visual-only; they never participate in circuit state.
+function BoardWorkMat() {
+  return (
+    <mesh position={[0, 0.018, 0]} receiveShadow>
+      <boxGeometry args={[9.65, 0.035, 3.55]} />
+      <meshStandardMaterial
+        color="#353B37"
+        roughness={0.82}
+        metalness={0.03}
+      />
+    </mesh>
+  );
+}
+
+function LabWorkbench() {
+  return (
+    <group>
+      {/* Large matte instrument-bench surface. */}
+      <mesh position={[0, -0.12, 0]} receiveShadow>
+        <boxGeometry args={[15.5, 0.24, 9.2]} />
+        <meshStandardMaterial
+          color="#252C28"
+          roughness={0.78}
+          metalness={0.04}
         />
       </mesh>
 
-      <mesh
-        position={[
-          0,
-          0.14,
-          -0.14,
-        ]}
-      >
-        <boxGeometry
-          args={[
-            0.32,
-            0.03,
-            0.07,
-          ]}
-        />
-
-        <meshBasicMaterial
-          color="#111827"
+      {/* Rear wall gives the scene a believable room boundary. */}
+      <mesh position={[0, 2.65, -4.15]} receiveShadow>
+        <boxGeometry args={[15.5, 5.5, 0.20]} />
+        <meshStandardMaterial
+          color="#101512"
+          roughness={0.94}
         />
       </mesh>
 
-      <mesh
-        position={[
-          0,
-          0.14,
-          0.14,
-        ]}
-      >
-        <boxGeometry
-          args={[
-            0.32,
-            0.03,
-            0.07,
-          ]}
+      {/* Rear shelf / cable-management rail. */}
+      <mesh position={[0, 0.18, -3.72]} receiveShadow>
+        <boxGeometry args={[14.6, 0.16, 0.52]} />
+        <meshStandardMaterial
+          color="#18201C"
+          roughness={0.84}
         />
+      </mesh>
 
-        <meshBasicMaterial
-          color="#111827"
+      <mesh position={[0, 0.27, -3.43]}>
+        <boxGeometry args={[13.9, 0.028, 0.045]} />
+        <meshStandardMaterial
+          color="#59645D"
+          metalness={0.35}
+          roughness={0.42}
+        />
+      </mesh>
+
+      <BoardWorkMat />
+
+      {/* Component tray remains functional through the existing drag positions. */}
+      <mesh position={[5.55, 0.052, -2.38]} receiveShadow>
+        <boxGeometry args={[4.0, 0.10, 1.95]} />
+        <meshStandardMaterial
+          color="#303733"
+          roughness={0.66}
+          metalness={0.04}
+        />
+      </mesh>
+
+      <mesh position={[5.55, 0.107, -2.38]}>
+        <boxGeometry args={[3.62, 0.018, 1.56]} />
+        <meshStandardMaterial
+          color="#1B211E"
+          roughness={0.86}
+        />
+      </mesh>
+
+      {/* Small tray rail makes the staging area read as intentional. */}
+      <mesh position={[5.55, 0.12, -3.14]}>
+        <boxGeometry args={[3.55, 0.035, 0.045]} />
+        <meshStandardMaterial
+          color="#687068"
+          metalness={0.18}
+          roughness={0.52}
         />
       </mesh>
     </group>
@@ -418,229 +451,125 @@ function LabScene({
   capStress,
   safetyTripped,
 }) {
-  const candidateColumn =
-    dragState.candidateColumn;
+  const candidateColumn = dragState.candidateColumn;
 
   const displayedSnappedColumn =
-    dragState.component ===
-      "capacitor"
+    dragState.component === "capacitor"
       ? capacitorSnappedColumn
       : resistorSnappedColumn;
 
   return (
     <Canvas
       style={{
-        width:
-          "100%",
-        height:
-          "100%",
+        width: "100%",
+        height: "100%",
       }}
-
       camera={{
-        position: [
-          0,
-          8.5,
-          8.5,
-        ],
-        fov: 45,
+        position: [5.8, 6.2, 8.8],
+        fov: 50,
         near: 0.1,
         far: 100,
       }}
-
       shadows
+      dpr={[1, 1.5]}
     >
-      <CameraRig
-        view={
-          cameraView
-        }
-      />
+      <CameraRig view={cameraView} />
 
       <SimulationRuntime
-        electricalSnapshot={
-          electricalSnapshot
-        }
+        electricalSnapshot={electricalSnapshot}
       />
 
-      <color
-        attach="background"
-        args={[
-          "#070b12",
-        ]}
-      />
+      {/* Deep green-black graphite keeps the scene premium without pure black. */}
+      <color attach="background" args={["#0A0E0D"]} />
 
-      <ambientLight
-        intensity={0.8}
-      />
+      {/* Broad ambient exposure keeps the manufactured materials readable. */}
+      <ambientLight intensity={1.15} />
 
+      {/* Cool overhead key. */}
       <directionalLight
-        position={[
-          4,
-          8,
-          5,
-        ]}
-        intensity={2.4}
+        position={[-4.5, 10, 5.5]}
+        intensity={3.2}
         castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.00015}
+      />
+
+      {/* Warm side fill. */}
+      <directionalLight
+        position={[6.0, 5.0, 1.0]}
+        intensity={1.15}
+        color="#C7B7A2"
+      />
+
+      {/* Cool rear separation. */}
+      <pointLight
+        position={[-4.5, 4.0, -1.5]}
+        intensity={18}
+        distance={13}
+        decay={2}
+        color="#7F9B98"
       />
 
       <pointLight
-        position={[
-          0,
-          5,
-          1,
-        ]}
-        intensity={60}
-        distance={14}
+        position={[4.0, 3.0, 3.5]}
+        intensity={12}
+        distance={10}
         decay={2}
-        castShadow
+        color="#E6DDD0"
       />
 
-      <mesh
-        rotation={[
-          -Math.PI / 2,
-          0,
-          0,
-        ]}
-        receiveShadow
-      >
-        <planeGeometry
-          args={[
-            14,
-            7,
-          ]}
-        />
+      <LabWorkbench />
 
-        <meshStandardMaterial
-          color="#18212b"
-          roughness={0.8}
-        />
-      </mesh>
-
+      {/* Existing interactive laboratory objects. */}
       <Breadboard
-        candidateColumn={
-          candidateColumn
-        }
-        snappedColumn={
-          displayedSnappedColumn
-        }
+        candidateColumn={candidateColumn}
+        snappedColumn={displayedSnappedColumn}
       />
 
       <Resistor
         position={
-          dragState.component ===
-            "resistor" &&
-            dragState.position
+          dragState.component === "resistor" && dragState.position
             ? dragState.position
             : resistorPosition
         }
-
-        dragging={
-          dragState.component ===
-          "resistor"
-        }
-
-        onPointerDown={
-          onResistorPointerDown
-        }
-
-        onPointerMove={
-          onPointerMove
-        }
-
-        onPointerUp={
-          onPointerUp
-        }
+        dragging={dragState.component === "resistor"}
+        onPointerDown={onResistorPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
       />
 
       <Capacitor
         position={
-          dragState.component ===
-            "capacitor" &&
-            dragState.position
+          dragState.component === "capacitor" && dragState.position
             ? dragState.position
             : capacitorPosition
         }
-
-        dragging={
-          dragState.component ===
-          "capacitor"
-        }
-
-        capStress={
-          capStress
-        }
-
-        tripped={
-          safetyTripped
-        }
-
-        onPointerDown={
-          onCapacitorPointerDown
-        }
-
-        onPointerMove={
-          onPointerMove
-        }
-
-        onPointerUp={
-          onPointerUp
-        }
+        dragging={dragState.component === "capacitor"}
+        capStress={capStress}
+        tripped={safetyTripped}
+        onPointerDown={onCapacitorPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
       />
 
       <CurrentClamp
-        point={
-          clampPoint
-        }
-
-        resistorColumn={
-          resistorSnappedColumn
-        }
-
-        capacitorColumn={
-          capacitorSnappedColumn
-        }
-
-        onPointChange={
-          onClampPointChange
-        }
+        point={clampPoint}
+        resistorColumn={resistorSnappedColumn}
+        capacitorColumn={capacitorSnappedColumn}
+        onPointChange={onClampPointChange}
       />
 
-      {cameraView ===
-        "analysis" && (
-          <PhasorDiagram
-            snapshot={
-              electricalSnapshot
-            }
-
-            simulationActive={
-              simulationActive
-            }
-
-            position={[
-              3.0,
-              0.9,
-              1.6,
-            ]}
-          />
-        )}
-
-      <mesh
-        position={
-          TRAY_POSITION
-        }
-      >
-        <boxGeometry
-          args={[
-            3.4,
-            0.08,
-            1.8,
+      {cameraView === "analysis" && (
+        <PhasorDiagram
+          snapshot={electricalSnapshot}
+          simulationActive={simulationActive}
+          position={[
+            2.15,
+            2.55,
+            -1.75,
           ]}
         />
-
-        <meshStandardMaterial
-          color="#111827"
-          roughness={0.7}
-        />
-      </mesh>
+      )}
     </Canvas>
   );
 }
